@@ -1,3 +1,6 @@
+"""Run a sample problem to test full system."""
+
+# pylint: disable=invalid-name,missing-docstring
 import unittest
 from collections import namedtuple
 import math
@@ -12,18 +15,20 @@ THIS_DIR = os.path.dirname(__file__)
 SAMPLE_INPUT = os.path.join(THIS_DIR, 'sample-input.yaml')
 
 class TestInput(unittest.TestCase):
+    """Test that input can be read."""
     def test_read_class_functions(self):
         functions = classfunctions.from_input(SAMPLE_INPUT)
         self.assertTrue('frequency' in functions)
 
 class Test_Sample_Problem(unittest.TestCase):
+    """Test by optimizing a beam problem from the literature."""
     def test_optimization(self):
         beam = SampleProblemBeam()
         # check initial conditions
         self.assertAlmostEqual(beam.frequency(), 113.0, delta=0.5)
         self.assertAlmostEqual(beam.cost(), 1060.0)
         self.assertAlmostEqual(beam.mass(), 2230.0)
-        
+
         prefs = classfunctions.from_input(SAMPLE_INPUT)
         optimize.optimize(beam, prefs)
 
@@ -31,7 +36,7 @@ class Test_Sample_Problem(unittest.TestCase):
         self.assertLess(beam.cost(), 1060.0)
 
 
-SampleDesign = namedtuple('SampleDesign', ['d1', 'd2', 'd3', 'b' , 'L'])
+SampleDesign = namedtuple('SampleDesign', ['d1', 'd2', 'd3', 'b', 'L'])
 
 class SampleProblemBeam(object):
     """Sample beam design problem from Messac, 1996."""
@@ -43,8 +48,8 @@ class SampleProblemBeam(object):
     RHO2 = 2770.0
     E3 = 200e9
     C3 = 800.0
-    RHO3= 7780.0
-    
+    RHO3 = 7780.0
+
     def __init__(self):
         self._design = SampleDesign(0.3, 0.35, 0.40, 0.40, 5.0)  # initial
 
@@ -58,10 +63,10 @@ class SampleProblemBeam(object):
 
     def analyze(self):
         """Convert input design into output design parameters."""
-        return [self.frequency(), self.cost(), self.width(), self.length(), 
-                self.mass(), self.semiheight(),self.width_layer1(), 
+        return [self.frequency(), self.cost(), self.width(), self.length(),
+                self.mass(), self.semiheight(), self.width_layer1(),
                 self.width_layer2(), self.width_layer3()]
-        
+
     @property
     def ei(self):
         ds = self.design

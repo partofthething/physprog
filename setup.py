@@ -1,11 +1,12 @@
+"""Setup.py script for physprog."""
+
 from setuptools import setup, find_packages
 
-
 with open('README.md') as f:
-    long_description = f.read()
+    README = f.read()
 
-
-setup(name='physprog',
+setup(
+    name='physprog',
     version='0.1',
     description=('Physical Programming algorithm to robustly build aggregate'
                  'objective functions for multiobjective optimization'),
@@ -14,7 +15,7 @@ setup(name='physprog',
     url='https://github.com/partofthething/physprog',
     packages=find_packages(),
     license='MIT',
-    long_description=long_description,
+    long_description=README,
     install_requires=['numpy', 'scipy'],
     keywords='physical programming multiobjective optimization aggregate',
     classifiers=[
@@ -28,7 +29,6 @@ setup(name='physprog',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         ],
-      test_suite='tests',
-      include_package_data=True
-
+    test_suite='tests',
+    include_package_data=True
 )

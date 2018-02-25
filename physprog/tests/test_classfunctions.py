@@ -1,3 +1,5 @@
+"""Unit tests for class functions."""
+# pylint: disable=invalid-name,missing-docstring
 import unittest
 
 

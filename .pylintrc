@@ -1,0 +1,6 @@
+[FORMAT]
+good-names=i,j,k,x,y,z,xi,g,gi,si,a,b,c,d,ax,_c,_d,_i
+
+[MESSAGES CONTROL]
+disable=superfluous-parens
+

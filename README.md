@@ -34,6 +34,10 @@ Directly from source:
 
 # Contributing
 
+We welcome contributions to make this system more useful to the community.
+There are automated tests that run with the `tox` command so make sure
+those all pass (including style checks) before submitting a PR. 
+
    
 # License
 
