@@ -1,0 +1,7 @@
+*.pyc
+*.swp
+.pydevproject
+.project
+.tox
+.cache
+*.egg-info

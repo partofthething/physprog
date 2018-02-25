@@ -1,0 +1,67 @@
+dependents:
+  frequency: 
+    class: LargerBetter
+    units: Hz
+    bounds:
+       - 200.0
+       - 150.0
+       - 120.0
+       - 110.0
+       - 100.0
+  cost: 
+    class: SmallerBetter
+    units: kg
+    bounds:
+       - 1000.0
+       - 1800.0
+       - 1900.0
+       - 1950.0
+       - 2000.0
+  width: 
+    class: LargerBetter
+    units: m
+    bounds:
+       - 0.55
+       - 0.45
+       - 0.40
+       - 0.35
+       - 0.30
+  length: 
+    class: LargerBetter
+    units: m
+    bounds:
+       - 6.0
+       - 4.0
+       - 3.8
+       - 3.3
+       - 3.0
+  mass: 
+    class: SmallerBetter
+    units: kg
+    bounds:
+       - 2000
+       - 2500
+       - 2600
+       - 2700
+       - 2800
+  semiheight: 
+    class: SmallerBetter
+    units: m
+    bounds:
+       - 0.30
+       - 0.40
+       - 0.50
+       - 0.55
+       - 0.60
+  width_layer1:
+    class: MustBeAbove
+    units: m
+    bound: 0.01
+  width_layer2:
+    class: MustBeAbove
+    units: m
+    bound: 0.01
+  width_layer3:
+    class: MustBeAbove
+    units: m
+    bound: 0.01
