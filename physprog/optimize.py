@@ -1,49 +1,36 @@
-"""Run optimization problems."""
+"""Optimize a design according to preferences."""
 import scipy.optimize
 
 from physprog import classfunctions
+from physprog import objective
 from physprog import plots
 
 
-def optimize(problem, preferences):
+def optimize(model, preferences, plot=False):
     """Optimize the given problem to specified preferences."""
-    classfunctions.construct_splines(preferences.values())
-    constraints = get_constraints(problem, preferences)
-
-    def objective(x):
-        """Evaluate the aggregate-objective function."""
-        problem.design = x
-        total = 0.0
-        for funcname, func in preferences.items():
-            if issubclass(func.__class__, classfunctions.SmoothClassFunction):
-                try:
-                    param_val = getattr(problem,
-                                        funcname)()  # e.g. cost of this design
-                except ValueError:
-                    # invalid, throw a big penalty.
-                    return 1e3
-
-                total += func.evaluate(param_val)  # transformed cost
-        return total
-
-    initial_performance = problem.analyze()
+    classfunctions.build_all_splines(preferences.values())
+    constraints = get_constraints(model, preferences)
+    aggregate = objective.build_objective(model, preferences)
+    initial_performance = model.evaluate()
     print('Optimizing design starting at value: {:.2f}\n{}'
-          ''.format(objective(problem.design), initial_performance))
+          ''.format(aggregate(model.design), initial_performance))
+
     scipy.optimize.minimize(
-        objective,
-        problem.design,
+        aggregate,
+        model.design,
         constraints=constraints,
-        options={'disp': True})
+        options={'disp': False})
 
-    final_performance = problem.analyze()
+    final_performance = model.evaluate()
     print('Optimal design input: {}\nParams: {}\nValue: {}'
-          ''.format(problem.design, final_performance, objective(
-              problem.design)))
+          ''.format(model.design, final_performance, aggregate(
+              model.design)))
 
-    plots.plot_optimization_results(
-        preferences,
-        initial_performance,
-        final_performance)
+    if plot:
+        plots.plot_optimization_results(
+            preferences,
+            initial_performance,
+            final_performance)
 
 
 def get_constraints(problem, preferences):

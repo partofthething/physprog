@@ -1,6 +1,6 @@
 """Definitions of the various kinds of Class Functions."""
 
-from collections import namedtuple
+import collections
 import math
 import sys
 
@@ -13,10 +13,10 @@ import matplotlib.pyplot as plt
 # right-hand limit is either positive or negative infinity.
 # we order them consistently with the region numbering, so
 # the most desirable regions are first.
-SoftBounds = namedtuple(
+SoftBounds = collections.namedtuple(
     'SoftBounds',
     ['awesome', 'desirable', 'tolerable', 'undesirable', 'horrible'])
-HardBounds = namedtuple('HardBounds', ['cutoff'])
+HardBounds = collections.namedtuple('HardBounds', ['cutoff'])
 
 # region labels
 AWESOME = 0
@@ -40,7 +40,7 @@ class ClassFunction(object):
         """Evaluate the class function against some input."""
         raise NotImplementedError
 
-    def compute(self, nsc, alpha=0.05, initial_beta=1.5):
+    def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
         """Compute the splines that define this class function's values."""
         raise NotImplementedError
 
@@ -92,7 +92,7 @@ class SmoothClassFunction(ClassFunction):
         width = bound_i - bound_im1
         return (g - bound_im1) / width, width
 
-    def compute(self, nsc, alpha=0.05, initial_beta=1.5):
+    def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
         """Compute the splines that define this class function's values."""
         # start at 1.5, increase by 0.5 as recommended in paper
         betas = np.arange(initial_beta, int(MAX_ITERATIONS / 0.5), 0.5)
@@ -109,6 +109,7 @@ class SmoothClassFunction(ClassFunction):
         raise RuntimeError('Class function construction did not converge.')
 
     def _compute_region_slopes(self, nsc, beta):
+        """Perform first loop in spline-building iteration."""
         for i, _bpv in enumerate(self.bounds):
             if i == 0:
                 gi = dgi = 0.1
@@ -124,7 +125,7 @@ class SmoothClassFunction(ClassFunction):
 
     def _compute_pointwise_slopes(self, alpha):
         """
-        Second loop in computation of splines.
+        Perform second loop in computation of splines.
 
         We loop in a second loop because the first region's
         slope depends on the values from the 2nd region.
@@ -218,7 +219,6 @@ class SmallerBetter(SmoothClassFunction):
         return UNACCEPTABLE  # unacceptable.
 
 
-
 class LargerBetter(SmoothClassFunction):
     """
     Larger values are better (2-S).
@@ -251,7 +251,7 @@ class TwoSidedFunction(ClassFunction):
         """Evaluate the class function against some input."""
         return NotImplementedError
 
-    def compute(self, nsc, alpha=0.05, initial_beta=1.5):
+    def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
         """Compute the splines that define this class function's values."""
         return NotImplementedError
 
@@ -263,7 +263,7 @@ class ValueIsBetter(TwoSidedFunction, SmoothClassFunction):
         """Evaluate the class function against some input."""
         return NotImplementedError
 
-    def compute(self, nsc, alpha=0.05, initial_beta=1.5):
+    def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
         """Compute the splines that define this class function's values."""
         return NotImplementedError
 
@@ -284,7 +284,7 @@ class HardClassFunction(ClassFunction):
         """Do nothing because this is converted to a constraint."""
         pass
 
-    def compute(self, nsc, alpha=0.05, initial_beta=1.5):
+    def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
         """Do nothing because this is converted to a constraint."""
         pass
 
@@ -324,10 +324,11 @@ class MustBeInRange(TwoSidedFunction, HardClassFunction):
 
 def from_input(filename):
     """Build class functions defined in an input file."""
-    funcs = {}
+    funcs = collections.OrderedDict()  # order matters.
     with open(filename) as inp:
         userinp = yaml.load(inp)
-        for dependent_name, details in userinp['dependents'].items():
+        for details in userinp['dependents']:
+            dependent_name = details['name']
             print('Loading {}'.format(dependent_name))
             cls = getattr(sys.modules[__name__], details['class'])
             if issubclass(cls, SmoothClassFunction):
@@ -339,8 +340,12 @@ def from_input(filename):
     return funcs
 
 
-def construct_splines(functions):
-    """Perform iteration to define splines."""
+def build_all_splines(functions):
+    """
+    Perform iteration to define splines.
+
+    This loops over all soft constraints until the value of beta converges.
+    """
     softfuncs = [
         func for func in functions
         if issubclass(func.__class__, SmoothClassFunction)
@@ -348,11 +353,10 @@ def construct_splines(functions):
     nsc = len(softfuncs)
     max_beta = 1.5
     last_beta = max_beta
-    num_runs = 10
-    for _i in range(num_runs):
+    for _i in range(MAX_ITERATIONS):
         print('beta is {0}'.format(max_beta))
         for func in softfuncs:
-            new_beta = func.compute(
+            new_beta = func.build_splines(
                 nsc, initial_beta=max_beta)  # returns beta required for convex
             if not new_beta:
                 raise RuntimeError(

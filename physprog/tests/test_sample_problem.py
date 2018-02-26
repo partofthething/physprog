@@ -30,7 +30,7 @@ class Test_Sample_Problem(unittest.TestCase):
         self.assertAlmostEqual(beam.mass(), 2230.0)
 
         prefs = classfunctions.from_input(SAMPLE_INPUT)
-        optimize.optimize(beam, prefs)
+        optimize.optimize(beam, prefs, plot=False)
 
         # not rigorous, but happens in this problem
         self.assertLess(beam.cost(), 1060.0)
@@ -53,6 +53,14 @@ class SampleProblemBeam(object):
     def __init__(self):
         self._design = SampleDesign(0.3, 0.35, 0.40, 0.40, 5.0)  # initial
 
+    def evaluate(self, x=None):
+        """Convert input design into output design parameters."""
+        if x is not None:
+            self.design = x
+        return [self.frequency(), self.cost(), self.width(), self.length(),
+                self.mass(), self.semiheight(), self.width_layer1(),
+                self.width_layer2(), self.width_layer3()]
+
     @property
     def design(self):
         return self._design
@@ -60,12 +68,6 @@ class SampleProblemBeam(object):
     @design.setter
     def design(self, val):
         self._design = SampleDesign(*val)
-
-    def analyze(self):
-        """Convert input design into output design parameters."""
-        return [self.frequency(), self.cost(), self.width(), self.length(),
-                self.mass(), self.semiheight(), self.width_layer1(),
-                self.width_layer2(), self.width_layer3()]
 
     @property
     def ei(self):
