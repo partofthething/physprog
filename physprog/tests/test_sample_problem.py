@@ -20,6 +20,7 @@ class TestInput(unittest.TestCase):
         functions = classfunctions.from_input(SAMPLE_INPUT)
         self.assertTrue('frequency' in functions)
 
+
 class Test_Sample_Problem(unittest.TestCase):
     """Test by optimizing a beam problem from the literature."""
     def test_optimization(self):
@@ -37,6 +38,7 @@ class Test_Sample_Problem(unittest.TestCase):
 
 
 SampleDesign = namedtuple('SampleDesign', ['d1', 'd2', 'd3', 'b', 'L'])
+
 
 class SampleProblemBeam(object):
     """Sample beam design problem from Messac, 1996."""
