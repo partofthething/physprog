@@ -1,5 +1,7 @@
 # PhysProg
-    
+
+[![Build Status](https://travis-ci.org/partofthething/physprog.svg?branch=master)](https://travis-ci.org/partofthething/physprog)
+
 **physprog** ("Physical Programming") is a tool for people who have something 
 with multiple metrics they want to optimize simultaneously. You may be an 
 engineer wanting to minimize the cost, minimize the weight, and maximize the 
