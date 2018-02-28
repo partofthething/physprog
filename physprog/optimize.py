@@ -8,7 +8,6 @@ from physprog import plots
 
 def optimize(model, preferences, plot=False):
     """Optimize the given problem to specified preferences."""
-    classfunctions.build_all_splines(preferences.values())
     constraints = get_constraints(model, preferences)
     aggregate = objective.build_objective(model, preferences)
     initial_performance = model.evaluate()

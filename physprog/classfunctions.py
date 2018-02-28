@@ -337,6 +337,7 @@ def from_input(filename):
             else:
                 bound = HardBounds(details['bound'])
                 funcs[dependent_name] = cls(bound)
+    build_all_splines(funcs.values())
     return funcs
 
 

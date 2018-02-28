@@ -6,8 +6,8 @@ engineer wanting to minimize the cost, minimize the weight, and maximize the
 width of a widget. Or you may be a fund manager trying to maximize
 your up-market capture ratio while minimizing your down-market capture ratio. 
 
-Regardless of what you want to optimize, it's often a dark-art to weight
-multiple performance metrics into one aggregate objective function to pass
+Regardless of what you want to optimize, it's often a dark art to weight
+multiple performance metrics into one aggregate objective function to be passed
 off to a general purpose function minimizer. 
 
 **physprog** eliminates the guess-work by taking meaningful preferences for each 
@@ -58,7 +58,7 @@ Directly from source:
 
 # Using it
 
-To use **physprog** you need two things: your preferences  and a model. 
+To use **physprog** you need two things: your preferences and a model. 
 
 ## Specifying Preferences
 
@@ -98,10 +98,11 @@ the input file.
 ## Specifying a model
 
 Your model must take inputs and produce outputs. Inputs should be 
-defined in a vector in the same order as your preferences were specified. 
-Outputs corresponding to inputs should be computed by an `evaluate` method. 
-There should be a method named after each of your dependent variables. With
-the example preferences above, your model may look like:
+defined in a tuple or list in the same order that your preferences were 
+specified in. Outputs corresponding to inputs should be computed 
+by an `evaluate` method. There should be a method named after each of 
+your dependent variables. With the example preferences above, your model 
+may look like:
 
 ```python
 SampleDesign = namedtuple('SampleDesign', ['d1', 'd2', 'd3', 'b', 'L'])
