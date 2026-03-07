@@ -189,13 +189,10 @@ here](./LICENSE).
 
 # References and See Also
 
-1. Messac, A. (1996). [Physical programming—Effective optimization for 
-   computational design.](https://doi.org/10.2514/3.13035) 
-   *AIAA Journal*, *34*(1), 149-158.
-2. Touran, N. W. (2012). [*A modal expansion equilibrium cycle 
-   perturbation method for optimizing high burnup fast reactors*]
-   (https://deepblue.lib.umich.edu/items/661bf746-f4a8-4268-b1d9-756551016636) 
-   (Doctoral dissertation, University of Michigan).
-3. Wikipedia contributors. (n.d.). [Multi-objective optimization.]
-   (https://en.wikipedia.org/wiki/Multiobjective_optimization) 
+1. Messac, A. (1996). 
+   [Physical programming—Effective optimization for computational design.](https://doi.org/10.2514/3.13035) *AIAA Journal*, *34*(1), 149-158.
+2. Touran, N. W. (2012). 
+   [A modal expansion equilibrium cycle perturbation method for optimizing high burnup fast reactors](https://deepblue.lib.umich.edu/items/661bf746-f4a8-4268-b1d9-756551016636) (Doctoral dissertation, University of Michigan).
+3. Wikipedia contributors. (n.d.). 
+   [Multi-objective optimization](https://en.wikipedia.org/wiki/Multiobjective_optimization) 
    In *Wikipedia, The Free Encyclopedia*.
