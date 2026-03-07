@@ -12,6 +12,7 @@ from physprog import classfunctions
 
 def build_objective(model, preferences):
     """Build an objective function based on a model and preferences."""
+
     def objective(x):
         """Evaluate the aggregate-objective function."""
         model.evaluate(x)

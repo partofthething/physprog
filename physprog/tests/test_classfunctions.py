@@ -1,13 +1,12 @@
 """Unit tests for class functions."""
+
 # pylint: disable=invalid-name,missing-docstring
 import unittest
-
 
 from physprog import classfunctions
 
 
 class TestSmallerBetter(unittest.TestCase):
-
     def setUp(self):
         self.bounds = classfunctions.SoftBounds(10, 20, 30, 40, 50)
         self.sb = classfunctions.SmallerBetter(self.bounds)
@@ -19,7 +18,6 @@ class TestSmallerBetter(unittest.TestCase):
 
 
 class TestLargerBetter(unittest.TestCase):
-
     def setUp(self):
         self.bounds = classfunctions.SoftBounds(50, 40, 30, 20, 10)
         self.lb = classfunctions.LargerBetter(self.bounds)

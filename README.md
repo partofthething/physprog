@@ -1,27 +1,25 @@
 # PhysProg
 
-[![Build Status](https://travis-ci.org/partofthething/physprog.svg?branch=master)](https://travis-ci.org/partofthething/physprog)
-
-**physprog** ("Physical Programming") is a tool for people who have something 
-with multiple metrics they want to optimize simultaneously. You may be an 
-engineer wanting to minimize the cost, minimize the weight, and maximize the 
+**physprog** ("Physical Programming") is a tool for people who have something
+with multiple metrics they want to optimize simultaneously. You may be an
+engineer wanting to minimize the cost, minimize the weight, and maximize the
 width of a widget. Or you may be a fund manager trying to maximize
-your up-market capture ratio while minimizing your down-market capture ratio. 
+your up-market capture ratio while minimizing your down-market capture ratio.
 
 Regardless of what you want to optimize, it's often a dark art to weight
 multiple performance metrics into one aggregate objective function to be passed
-off to a general purpose function minimizer. 
+off to a general purpose function minimizer.
 
-**physprog** eliminates the guess-work by taking meaningful preferences for each 
-performance metric and building the 
-aggregate objective function for you. With this, you can focus your time on 
+**physprog** eliminates the guess-work by taking meaningful preferences for each
+performance metric and building the
+aggregate objective function for you. With this, you can focus your time on
 adjusting the design of your product and less time (no time, really)
-adjusting the weights so that they accurately reflect your preferences. 
+adjusting the weights so that they accurately reflect your preferences.
 
-**physprog** is an implementation of the Messac's Physical Programming algorithm 
+**physprog** is an implementation of the Messac's Physical Programming algorithm
 [[1](https://messac.expressions.syr.edu/wp-content/uploads/2012/05/Messac_1996_AIAA_PP.pdf)].
 For each performance metric, you express your preferences by defining the
-boundaries between 6 preference regions: 
+boundaries between 6 preference regions:
 
 * Highly Desirable
 * Desirable
@@ -51,16 +49,26 @@ The code for this project, as well as the issue tracker, etc. is
 
 # Installing it
 
-Directly from source:
+Install directly from the repo:
+
+    uv pip install git+https://github.com/partofthething/physprog.git
+
+Or from a local clone:
 
     git clone git@github.com:partofthething/physprog.git
     cd physprog
-    python setup.py install
-    
+    uv pip install .
+
+# Development
+
+    git clone git@github.com:partofthething/physprog.git
+    cd physprog
+    uv sync
+    uv run pytest
 
 # Using it
 
-To use **physprog** you need two things: your preferences and a model. 
+To use **physprog** you need two things: your preferences and a model.
 
 ## Specifying Preferences
 
@@ -95,21 +103,21 @@ dependents:
 ```
 
 NOTE: You can also specify preferences in a dictionary and bypass
-the input file.  
+the input file.
 
 ## Specifying a model
 
-Your model must take inputs and produce outputs. Inputs should be 
-defined in a tuple or list in the same order that your preferences were 
-specified in. Outputs corresponding to inputs should be computed 
-by an `evaluate` method. There should be a method named after each of 
-your dependent variables. With the example preferences above, your model 
+Your model must take inputs and produce outputs. Inputs should be
+defined in a tuple or list in the same order that your preferences were
+specified in. Outputs corresponding to inputs should be computed
+by an `evaluate` method. There should be a method named after each of
+your dependent variables. With the example preferences above, your model
 may look like:
 
 ```python
 SampleDesign = namedtuple('SampleDesign', ['d1', 'd2', 'd3', 'b', 'L'])
 
-class SampleProblemBeam(object):
+class SampleProblemBeam:
     """Dummy sample problem."""
 
     def __init__(self):
@@ -126,19 +134,19 @@ class SampleProblemBeam(object):
 
     def cost(self):
         ds = self.design
-        return 2 * ds.b * ds.L 
+        return 2 * ds.b * ds.L
 
     def width(self):
         return self.design.b
 ```
 
 A complete sample problem involving the design of a beam is [included
-in the tests](./physprog/tests/test_sample_problem.py). 
+in the tests](./physprog/tests/test_sample_problem.py).
 
 
 ## Running an optimization problem
 
-To compute the optimal design of your thing, 
+To compute the optimal design of your thing,
 do something like this:
 
 ```python
@@ -163,15 +171,16 @@ model = SampleProblemBeam()
 aggregate = objective.build_objective(model, preferences)
 ```
 
-Then you can pass the `aggregate` to any other optimization engine. 
+Then you can pass the `aggregate` to any other optimization engine.
 
 # Contributing
 
-You are encouraged to make contributions to make this system more 
-useful to everyone. There are automated tests that run with the 
-`tox` command so make sure those all pass (including style checks) 
-before submitting a PR. If you have a big change in mind you
-may want to contact the author 
+You are encouraged to make contributions to make this system more
+useful to everyone. There are automated tests that run with
+`uv run pytest` so make sure those all pass before submitting a PR.
+You can run the linter with `uv run ruff check .` and the formatter
+with `uv run ruff format .`. If you have a big change in mind you
+may want to contact the author.
 
 # License
 

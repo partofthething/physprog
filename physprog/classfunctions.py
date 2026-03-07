@@ -4,19 +4,18 @@ import collections
 import math
 import sys
 
-import yaml
-import numpy as np
 import matplotlib.pyplot as plt
-
+import numpy as np
+import yaml
 
 # data structure representing the limits of each range.
 # right-hand limit is either positive or negative infinity.
 # we order them consistently with the region numbering, so
 # the most desirable regions are first.
 SoftBounds = collections.namedtuple(
-    'SoftBounds',
-    ['awesome', 'desirable', 'tolerable', 'undesirable', 'horrible'])
-HardBounds = collections.namedtuple('HardBounds', ['cutoff'])
+    "SoftBounds", ["awesome", "desirable", "tolerable", "undesirable", "horrible"]
+)
+HardBounds = collections.namedtuple("HardBounds", ["cutoff"])
 
 # region labels
 AWESOME = 0
@@ -29,7 +28,7 @@ UNACCEPTABLE = 5
 MAX_ITERATIONS = 20
 
 
-class ClassFunction(object):
+class ClassFunction:
     """Basic class function expressing preferences."""
 
     def __init__(self, bounds):
@@ -69,19 +68,19 @@ class SmoothClassFunction(ClassFunction):
         i = self.which_region(g)
         if i == AWESOME:
             # in first region we just use a simple exponential curve.
-            return self.gis[0] * (math.exp(
-                self.slopes[1] / self.gis[0] * g - self.bounds.desirable))
+            return self.gis[0] * (
+                math.exp(self.slopes[1] / self.gis[0] * g - self.bounds.desirable)
+            )
         elif i == UNACCEPTABLE:
             # super steep outside acceptable bounds
             # NOTE: could also set these as inequality constraints
             return abs(self.gis[-1] * 50 * g)
         a, b, c, d = self.evaluate_spline_coeffs(i)
         xi, width = self.get_region_fraction(g, i)
-        xi4 = xi ** 4
+        xi4 = xi**4
         xim14 = (xi - 1) ** 4
 
-        return width ** 4 * (
-            a / 12.0 * xi4 + b / 12.0 * xim14) + c * width * xi + d
+        return width**4 * (a / 12.0 * xi4 + b / 12.0 * xim14) + c * width * xi + d
 
     def get_region_fraction(self, g, i):
         """Compute the fraction across region i the value g is."""
@@ -106,7 +105,7 @@ class SmoothClassFunction(ClassFunction):
             if acceptable:
                 return beta
 
-        raise RuntimeError('Class function construction did not converge.')
+        raise RuntimeError("Class function construction did not converge.")
 
     def _compute_region_slopes(self, nsc, beta):
         """Perform first loop in spline-building iteration."""
@@ -117,8 +116,7 @@ class SmoothClassFunction(ClassFunction):
             else:
                 dgi = beta * nsc * dgi
                 gi = gi + dgi
-                region_slope = dgi / (
-                    self.bounds[i] - self.bounds[i - 1])
+                region_slope = dgi / (self.bounds[i] - self.bounds[i - 1])
             self.gis.append(gi)
             self.dgis.append(dgi)
             self.region_slopes.append(region_slope)
@@ -137,11 +135,9 @@ class SmoothClassFunction(ClassFunction):
                 # slope[k]=skMin+alpha*(-skMax+skMin)
                 # skMin-skMax in the paper. But if you calculate it you see
                 # the paper is wrong, but the expression is right.
-                slope_min_i = (
-                    4.0 * region_slope - self.slopes[i - 1]) / 3.0
+                slope_min_i = (4.0 * region_slope - self.slopes[i - 1]) / 3.0
                 slope_max_i = 4.0 * region_slope - 3 * self.slopes[i - 1]
-                self.slopes[
-                    i] = slope_min_i + alpha * (slope_max_i - slope_min_i)
+                self.slopes[i] = slope_min_i + alpha * (slope_max_i - slope_min_i)
 
                 # check positivity of a and b constants.
                 a, b, _c, _d = self.evaluate_spline_coeffs(i)
@@ -162,8 +158,8 @@ class SmoothClassFunction(ClassFunction):
         rsi = self.region_slopes[i]
         gim1 = self.gis[i - 1]
 
-        a = (3.0 * (3.0 * si + sim1) - 12.0 * rsi) / (2.0 * width ** 3)
-        b = (12.0 * rsi - 3.0 * (si + 3.0 * sim1)) / (2.0 * width ** 3)
+        a = (3.0 * (3.0 * si + sim1) - 12.0 * rsi) / (2.0 * width**3)
+        b = (12.0 * rsi - 3.0 * (si + 3.0 * sim1)) / (2.0 * width**3)
         c = 2 * rsi - 0.5 * si - 0.5 * sim1
         d = gim1 - width * (0.5 * rsi - 0.125 * si - 0.375 * sim1)
 
@@ -178,11 +174,11 @@ class SmoothClassFunction(ClassFunction):
         x = np.linspace(self.bounds[0], self.bounds[-1], 200)
         y = [self.evaluate(xi) for xi in x]
         plt.figure()
-        plt.plot(x, y, label='Class func')
-        plt.plot(self.bounds, self.gis, 'o', label='Algorithm')
-        plt.grid(color='0.7')
-        plt.xlabel('Dependent Variable')
-        plt.ylabel('PP Transformed Class Value')
+        plt.plot(x, y, label="Class func")
+        plt.plot(self.bounds, self.gis, "o", label="Algorithm")
+        plt.grid(color="0.7")
+        plt.xlabel("Dependent Variable")
+        plt.ylabel("PP Transformed Class Value")
         if fname:
             plt.savefig(fname)
         else:
@@ -209,7 +205,7 @@ class SmallerBetter(SmoothClassFunction):
 
     def which_region(self, g):
         """Determine which region dependent variable value g is in."""
-        low = -float('inf')
+        low = -float("inf")
         for i, upper_edge in enumerate(self.bounds):
             if low <= g <= upper_edge:
                 # this is our region.
@@ -228,7 +224,7 @@ class LargerBetter(SmoothClassFunction):
 
     def which_region(self, g):
         """Determine which region dependent variable value g is in."""
-        high = +float('inf')
+        high = +float("inf")
         for i, lower_edge in enumerate(self.bounds):
             if lower_edge <= g <= high:
                 # this is our region.
@@ -288,6 +284,7 @@ class HardClassFunction(ClassFunction):
         """Do nothing because this is converted to a constraint."""
         pass
 
+
 class MustBeAbove(HardClassFunction):
     """Value must be above a bound (1-H)."""
 
@@ -326,16 +323,16 @@ def from_input(filename):
     """Build class functions defined in an input file."""
     funcs = collections.OrderedDict()  # order matters.
     with open(filename) as inp:
-        userinp = yaml.load(inp)
-        for details in userinp['dependents']:
-            dependent_name = details['name']
-            print('Loading {}'.format(dependent_name))
-            cls = getattr(sys.modules[__name__], details['class'])
+        userinp = yaml.safe_load(inp)
+        for details in userinp["dependents"]:
+            dependent_name = details["name"]
+            print(f"Loading {dependent_name}")
+            cls = getattr(sys.modules[__name__], details["class"])
             if issubclass(cls, SmoothClassFunction):
-                bounds = SoftBounds(*details['bounds'])
+                bounds = SoftBounds(*details["bounds"])
                 funcs[dependent_name] = cls(bounds)
             else:
-                bound = HardBounds(details['bound'])
+                bound = HardBounds(details["bound"])
                 funcs[dependent_name] = cls(bound)
     build_all_splines(funcs.values())
     return funcs
@@ -348,20 +345,19 @@ def build_all_splines(functions):
     This loops over all soft constraints until the value of beta converges.
     """
     softfuncs = [
-        func for func in functions
-        if issubclass(func.__class__, SmoothClassFunction)
+        func for func in functions if issubclass(func.__class__, SmoothClassFunction)
     ]
     nsc = len(softfuncs)
     max_beta = 1.5
     last_beta = max_beta
     for _i in range(MAX_ITERATIONS):
-        print('beta is {0}'.format(max_beta))
+        print(f"beta is {max_beta}")
         for func in softfuncs:
             new_beta = func.build_splines(
-                nsc, initial_beta=max_beta)  # returns beta required for convex
+                nsc, initial_beta=max_beta
+            )  # returns beta required for convex
             if not new_beta:
-                raise RuntimeError(
-                    'Error building {0}. Beta did not converge.'.format(func))
+                raise RuntimeError(f"Error building {func}. Beta did not converge.")
             max_beta = max(max_beta, new_beta)
 
         if max_beta == last_beta:
@@ -369,7 +365,6 @@ def build_all_splines(functions):
             break
         last_beta = max_beta
     else:
-        raise RuntimeError(
-            'PP algorithm to build class functions did not converge')
+        raise RuntimeError("PP algorithm to build class functions did not converge")
 
-    print('Successful build of {0} PP class functions'.format(nsc))
+    print(f"Successful build of {nsc} PP class functions")
