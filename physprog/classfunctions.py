@@ -4,7 +4,6 @@ import collections
 import math
 import sys
 
-import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
@@ -27,9 +26,31 @@ UNACCEPTABLE = 5
 
 MAX_ITERATIONS = 20
 
+# Largest beta tried when building splines (beta grows by 0.5 per attempt).
+MAX_BETA = 40.0
+
+# Quadratic coefficient of the penalty applied beyond the last bound. The
+# penalty continues the last spline with matching value and slope, then adds
+# this times the square of the overshoot (in class-function units), so it is
+# smooth (C1) for gradient-based optimizers but grows quickly.
+UNACCEPTABLE_PENALTY = 10.0
+
+REGION_NAMES = (
+    "Highly desirable",
+    "Desirable",
+    "Tolerable",
+    "Undesirable",
+    "Highly undesirable",
+    "Unacceptable",
+)
+
 
 class ClassFunction:
     """Basic class function expressing preferences."""
+
+    # Optional metadata used for labeling plots.
+    name = None
+    units = None
 
     def __init__(self, bounds):
         """Construct class function."""
@@ -67,14 +88,15 @@ class SmoothClassFunction(ClassFunction):
         """
         i = self.which_region(g)
         if i == AWESOME:
-            # in first region we just use a simple exponential curve.
-            return self.gis[0] * (
-                math.exp(self.slopes[1] / self.gis[0] * g - self.bounds.desirable)
-            )
-        elif i == UNACCEPTABLE:
-            # super steep outside acceptable bounds
-            # NOTE: could also set these as inequality constraints
-            return abs(self.gis[-1] * 50 * g)
+            # Exponential decay that matches the value and slope at the
+            # first bound and never reaches zero.
+            g0 = self.gis[0]
+            return g0 * math.exp(self.slopes[0] / g0 * (g - self.bounds[0]))
+        if i == UNACCEPTABLE:
+            # Continue the last spline smoothly, then penalize quadratically.
+            # slope * overshoot is positive for both smaller/larger-is-better.
+            excess = self.slopes[-1] * (g - self.bounds[-1])
+            return self.gis[-1] + excess + UNACCEPTABLE_PENALTY * excess**2
         a, b, c, d = self.evaluate_spline_coeffs(i)
         xi, width = self.get_region_fraction(g, i)
         xi4 = xi**4
@@ -94,7 +116,7 @@ class SmoothClassFunction(ClassFunction):
     def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
         """Compute the splines that define this class function's values."""
         # start at 1.5, increase by 0.5 as recommended in paper
-        betas = np.arange(initial_beta, int(MAX_ITERATIONS / 0.5), 0.5)
+        betas = np.arange(initial_beta, MAX_BETA, 0.5)
         for beta in betas:
             self.gis = []
             self.dgis = []
@@ -130,7 +152,8 @@ class SmoothClassFunction(ClassFunction):
         """
         for i, region_slope in enumerate(self.region_slopes):
             if i == 0:
-                self.slopes[i] = alpha * region_slope
+                # s_1 = alpha * (average slope of the next region), per Messac.
+                self.slopes[i] = alpha * self.region_slopes[1]
             else:
                 # slope[k]=skMin+alpha*(-skMax+skMin)
                 # skMin-skMax in the paper. But if you calculate it you see
@@ -170,19 +193,10 @@ class SmoothClassFunction(ClassFunction):
         raise NotImplementedError
 
     def plot(self, fname=None):
-        """Plot this class function."""
-        x = np.linspace(self.bounds[0], self.bounds[-1], 200)
-        y = [self.evaluate(xi) for xi in x]
-        plt.figure()
-        plt.plot(x, y, label="Class func")
-        plt.plot(self.bounds, self.gis, "o", label="Algorithm")
-        plt.grid(color="0.7")
-        plt.xlabel("Dependent Variable")
-        plt.ylabel("PP Transformed Class Value")
-        if fname:
-            plt.savefig(fname)
-        else:
-            plt.show()
+        """Plot this class function, saving to ``fname`` or showing it."""
+        from physprog import plots  # noqa: PLC0415  (lazy: keep matplotlib optional)
+
+        plots.plot_class_function(self, fname=fname)
 
     def acceptability(self, g):
         """
@@ -191,6 +205,8 @@ class SmoothClassFunction(ClassFunction):
         Useful for plotting relative changes to values.
         """
         region = self.which_region(g)
+        if region == UNACCEPTABLE:
+            return 0.0
         xi, _width = self.get_region_fraction(g, region)
         return 1.0 - (region + xi) / 5.0
 
@@ -237,7 +253,7 @@ class LargerBetter(SmoothClassFunction):
 class TwoSidedFunction(ClassFunction):
     """Class function for value or range is better."""
 
-    def __init__(self, lower_bounds, upper_bounds):  # pylint: disable=super-init-not-called
+    def __init__(self, lower_bounds, upper_bounds):
         """Construct class function."""
         # requires two sets of bounds for lower and upper limit
         self._lower_bounds = lower_bounds
@@ -245,11 +261,11 @@ class TwoSidedFunction(ClassFunction):
 
     def evaluate(self, g):
         """Evaluate the class function against some input."""
-        return NotImplementedError
+        raise NotImplementedError
 
     def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
         """Compute the splines that define this class function's values."""
-        return NotImplementedError
+        raise NotImplementedError
 
 
 class ValueIsBetter(TwoSidedFunction, SmoothClassFunction):
@@ -257,15 +273,15 @@ class ValueIsBetter(TwoSidedFunction, SmoothClassFunction):
 
     def evaluate(self, g):
         """Evaluate the class function against some input."""
-        return NotImplementedError
+        raise NotImplementedError
 
     def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
         """Compute the splines that define this class function's values."""
-        return NotImplementedError
+        raise NotImplementedError
 
     def which_region(self, g):
         """Determine which region dependent variable value g is in."""
-        return NotImplementedError
+        raise NotImplementedError
 
 
 class HardClassFunction(ClassFunction):
@@ -327,13 +343,19 @@ def from_input(filename):
         for details in userinp["dependents"]:
             dependent_name = details["name"]
             print(f"Loading {dependent_name}")
-            cls = getattr(sys.modules[__name__], details["class"])
+            cls = getattr(sys.modules[__name__], details["class"], None)
+            if not (isinstance(cls, type) and issubclass(cls, ClassFunction)):
+                raise ValueError(
+                    f"Unknown class function {details['class']!r} "
+                    f"for {dependent_name!r}"
+                )
             if issubclass(cls, SmoothClassFunction):
-                bounds = SoftBounds(*details["bounds"])
-                funcs[dependent_name] = cls(bounds)
+                func = cls(SoftBounds(*details["bounds"]))
             else:
-                bound = HardBounds(details["bound"])
-                funcs[dependent_name] = cls(bound)
+                func = cls(HardBounds(details["bound"]))
+            func.name = dependent_name
+            func.units = details.get("units")
+            funcs[dependent_name] = func
     build_all_splines(funcs.values())
     return funcs
 
