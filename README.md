@@ -274,13 +274,19 @@ Then you can pass the `aggregate` to any other optimization engine.
 
 Hard constraints (`MustBeBelow`, `MustBeAbove`, `MustEqual`, `MustBeInRange`)
 are not part of the aggregate objective, so pass them to your optimizer
-separately. For scipy:
+separately. If your model is expensive, share a `ModelEvaluator` between the
+objective and the constraints. It runs `model.evaluate(x)` once per design
+and caches the results, so the objective, the constraints and their
+finite-difference gradients don't re-run the model at the same point. For
+scipy:
 
 ```python
 import scipy.optimize
-from physprog import optimize
+from physprog import objective, optimize
 
-constraints = optimize.get_constraints(model, preferences)
+evaluator = objective.ModelEvaluator(model, preferences)
+aggregate = objective.build_objective(model, preferences, evaluator=evaluator)
+constraints = optimize.get_constraints(model, preferences, evaluator=evaluator)
 result = scipy.optimize.minimize(aggregate, model.design, constraints=constraints)
 ```
 

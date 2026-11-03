@@ -282,8 +282,10 @@ def test_range_constraint_binds():
     }
     cf.build_all_splines(prefs.values())
     model = Model()
-    constraints = optimize.get_constraints(model, prefs)
-    assert len(constraints) == 2
+    (constraint,) = optimize.get_constraints(model, prefs)
+    # lower and upper limits of the range
+    assert len(constraint["fun"](model.design, *constraint["args"])) == 2
+    constraints = [constraint]
     aggregate = objective.build_objective(model, prefs)
     result = scipy.optimize.minimize(aggregate, model.design, constraints=constraints)
     model.evaluate(result.x)

@@ -55,8 +55,9 @@ def test_constraints_use_their_own_cutoffs():
         "width": classfunctions.MustBeAbove(classfunctions.HardBounds(0.1)),
         "length": classfunctions.MustBeBelow(classfunctions.HardBounds(7.0)),
     }
-    constraints = optimize.get_constraints(beam, prefs)
-    values = [c["fun"](beam.design, *c["args"]) for c in constraints]
+    (constraint,) = optimize.get_constraints(beam, prefs)
+    assert constraint["type"] == "ineq"
+    values = constraint["fun"](beam.design, *constraint["args"])
     assert values == pytest.approx([0.4 - 0.1, 7.0 - 5.0])
 
 
