@@ -53,34 +53,43 @@ def get_constraints(problem, preferences):
     """
     Extract constraints given a set of class functions.
 
-    Scipy needs a sequence of dicts describing inequalities that
-    will be forced to be >=0.
+    Scipy needs a sequence of dicts describing constraints: "ineq"
+    functions are forced to be >= 0 and "eq" functions to be 0.
+
+    Pass the result as ``constraints=`` to ``scipy.optimize.minimize`` when
+    using the aggregate objective from :mod:`physprog.objective` directly;
+    hard preferences are not part of the aggregate objective.
     """
     print("Building constraints")
     constraints = []
     for funcname, func in preferences.items():
-        # (cutoff, sign) pairs: param >= cutoff is sign +1 (param - cutoff >= 0)
+        # (type, cutoff, sign): param >= cutoff is sign +1 (param - cutoff >= 0)
         # and param <= cutoff is sign -1 (cutoff - param >= 0).
         if isinstance(func, classfunctions.MustBeAbove):
-            limits = [(func.bounds.cutoff, 1.0)]
+            limits = [("ineq", func.bounds.cutoff, 1.0)]
         elif isinstance(func, classfunctions.MustBeBelow):
-            limits = [(func.bounds.cutoff, -1.0)]
+            limits = [("ineq", func.bounds.cutoff, -1.0)]
+        elif isinstance(func, classfunctions.MustEqual):
+            limits = [("eq", func.bounds.cutoff, 1.0)]
         elif isinstance(func, classfunctions.MustBeInRange):
-            limits = [(func.bounds.lower, 1.0), (func.bounds.upper, -1.0)]
+            limits = [
+                ("ineq", func.bounds.lower, 1.0),
+                ("ineq", func.bounds.upper, -1.0),
+            ]
         else:
             continue
         constraints.extend(
             {
-                "type": "ineq",
+                "type": kind,
                 "fun": _constraint,
                 "args": (problem, funcname, cutoff, sign),
             }
-            for cutoff, sign in limits
+            for kind, cutoff, sign in limits
         )
     return constraints
 
 
 def _constraint(x, prob, funcname, cutoff, sign):
-    """Evaluate a hard constraint; must be >= 0 when satisfied."""
+    """Evaluate a hard constraint; >= 0 (or == 0 for "eq") when satisfied."""
     prob.design = x
     return sign * (getattr(prob, funcname)() - cutoff)

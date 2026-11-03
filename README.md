@@ -40,7 +40,7 @@ preferences, such as:
 
 Of course, you can also define hard constraints for
 performance metrics, as in: "thickness has to be at least 1mm"
-(`MustBeAbove`, `MustBeBelow`, `MustBeInRange`).
+(`MustBeBelow`, `MustBeAbove`, `MustEqual`, `MustBeInRange`).
 
 **physprog** can just hand you the objective function for you to pass on
 to whatever optimization routine you prefer, or it has some basic
@@ -130,6 +130,16 @@ constraint takes a `[lower, upper]` pair:
     class: MustBeInRange
     units: deg
     bounds: [10, 20]
+```
+
+`MustEqual` (a hard "value is better") takes a single `bound`, like
+`MustBeAbove`:
+
+```yaml
+  - name: span
+    class: MustEqual
+    units: m
+    bound: 4.0
 ```
 
 NOTE: You can also build preferences in Python and bypass the input file.
@@ -261,6 +271,18 @@ aggregate = objective.build_objective(model, preferences)
 ```
 
 Then you can pass the `aggregate` to any other optimization engine.
+
+Hard constraints (`MustBeBelow`, `MustBeAbove`, `MustEqual`, `MustBeInRange`)
+are not part of the aggregate objective, so pass them to your optimizer
+separately. For scipy:
+
+```python
+import scipy.optimize
+from physprog import optimize
+
+constraints = optimize.get_constraints(model, preferences)
+result = scipy.optimize.minimize(aggregate, model.design, constraints=constraints)
+```
 
 # Contributing
 
