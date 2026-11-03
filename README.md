@@ -33,13 +33,14 @@ boundaries between 6 preference regions:
 You can choose between several *class functions* to reflect these
 preferences, such as:
 
-* Smaller is better
-* Larger is better
-* Value is better
-* Range is better
+* Smaller is better (`SmallerBetter`)
+* Larger is better (`LargerBetter`)
+* Value is better (`ValueIsBetter`)
+* Range is better (`RangeIsBetter`)
 
 Of course, you can also define hard constraints for
-performance metrics, as in: "thickness has to be at least 1mm."
+performance metrics, as in: "thickness has to be at least 1mm"
+(`MustBeAbove`, `MustBeBelow`, `MustBeInRange`).
 
 **physprog** can just hand you the objective function for you to pass on
 to whatever optimization routine you prefer, or it has some basic
@@ -104,8 +105,34 @@ dependents:
     bound: 0.01
 ```
 
-NOTE: You can also specify preferences in a dictionary and bypass
-the input file.
+For metrics that are bad on both sides, give `lower_bounds` (below the ideal,
+decreasing) and `upper_bounds` (above the ideal, increasing), each from most
+to least desirable. The highly desirable region is between the two first
+bounds. `ValueIsBetter` takes an optional `target` inside that region; if you
+leave it out, it goes in the middle for symmetric bounds. A two-sided hard
+constraint takes a `[lower, upper]` pair:
+
+```yaml
+  - name: thickness
+    class: ValueIsBetter
+    units: mm
+    target: 4.9
+    lower_bounds: [4.6, 4.2, 4.0, 3.8, 3.5]
+    upper_bounds: [5.2, 5.6, 5.8, 6.0, 6.3]
+  - name: temperature
+    class: RangeIsBetter
+    units: °C
+    lower_bounds: [20, 18, 17, 16, 15]
+    upper_bounds: [24, 26, 27, 28, 29]
+  - name: angle
+    class: MustBeInRange
+    units: deg
+    bounds: [10, 20]
+```
+
+NOTE: You can also build preferences in Python and bypass the input file.
+Construct the class functions, put them in a dict keyed by dependent-variable
+name, and call `classfunctions.build_all_splines(prefs.values())`.
 
 ## Visualizing class functions
 
@@ -129,6 +156,16 @@ preferences["cost"].plot()  # or plot(fname='cost.png')
 ![Larger-is-better class function for frequency](./assets/class-function-frequency.png "Larger is better")
 
 The y axis is logarithmic, and the black dots mark the region boundaries.
+
+Two-sided preferences join a larger-is-better curve and a smaller-is-better
+curve around the highly desirable region. *Value is better* dips slightly to
+a minimum at the target. *Range is better* is flat across its whole range:
+
+![Value-is-better and range-is-better class functions](./assets/class-function-two-sided.png "Two-sided class functions")
+
+The dip inside the highly desirable region is deliberately shallow, in keeping
+with the method: an optimizer gets the metric into that region, but
+it will readily trade away exact target accuracy to improve other metrics.
 
 ## Specifying a model
 

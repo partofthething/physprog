@@ -14,6 +14,8 @@ REGION_COLORS = ("#1a9850", "#91cf60", "#d9ef8b", "#fee08b", "#fc8d59", "#d73027
 DIRECTION_LABELS = {
     cf.SmallerBetter: "smaller is better",
     cf.LargerBetter: "larger is better",
+    cf.ValueIsBetter: "value is better",
+    cf.RangeIsBetter: "range is better",
 }
 
 
@@ -40,6 +42,24 @@ def _plot_range(func, extra=(), pad=0.15):
     return lo - pad * span, hi + pad * span
 
 
+def _one_sided_spans(bounds, best, worst):
+    """Return (left, right, region) spans for bounds ordered best to worst."""
+    edges = [best, *bounds, worst]
+    return [(*sorted((edges[i], edges[i + 1])), i) for i in range(len(REGION_COLORS))]
+
+
+def region_spans(func, lo, hi):
+    """Return the (left, right, region) spans of ``func`` within [lo, hi]."""
+    if isinstance(func, cf.TwoSidedFunction):
+        low, high = func.best_region
+        lower = _one_sided_spans(func.lower.bounds, low, lo)[1:]
+        upper = _one_sided_spans(func.upper.bounds, high, hi)[1:]
+        return [*lower, (low, high, cf.AWESOME), *upper]
+    if func.direction < 0:
+        return _one_sided_spans(func.bounds, hi, lo)
+    return _one_sided_spans(func.bounds, lo, hi)
+
+
 def region_legend_handles():
     """Legend handles for the six preference regions."""
     return [
@@ -64,7 +84,7 @@ def plot_class_function(
     Parameters
     ----------
     func : SmoothClassFunction
-        A class function whose splines have been built.
+        A class function whose splines have been built (one- or two-sided).
     ax : matplotlib Axes, optional
         Axes to draw into. A new figure is made if omitted.
     label_regions : bool
@@ -94,13 +114,8 @@ def plot_class_function(
     y = np.array([func.evaluate(xi) for xi in x])
     ymax = func.gis[-1] * 8
 
-    # Shade regions. Edges run from the best side of the plot to the worst.
-    larger_better = func.bounds[0] > func.bounds[-1]
-    best, worst = (hi, lo) if larger_better else (lo, hi)
-    edges = [best, *func.bounds, worst]
-    for i, color in enumerate(REGION_COLORS):
-        left, right = sorted((edges[i], edges[i + 1]))
-        ax.axvspan(left, right, color=color, alpha=0.35, lw=0)
+    for left, right, i in region_spans(func, lo, hi):
+        ax.axvspan(left, right, color=REGION_COLORS[i], alpha=0.35, lw=0)
         if label_regions:
             # Wide bands get horizontal text; narrow ones get vertical text.
             wide = (right - left) / (hi - lo) > 0.12
@@ -117,7 +132,18 @@ def plot_class_function(
             )
 
     ax.plot(x, y, color="k", lw=2)
-    ax.plot(func.bounds, func.gis, "o", color="k", ms=5, zorder=3)
+    bound_values = [func.evaluate(b) for b in func.bounds]
+    ax.plot(func.bounds, bound_values, "o", color="k", ms=5, zorder=3)
+    if isinstance(func, cf.ValueIsBetter):
+        ax.axvline(func.target, color="k", ls="--", lw=1)
+        ax.text(
+            func.target,
+            0.03,
+            " target",
+            transform=ax.get_xaxis_transform(),
+            fontsize=8,
+            color="0.25",
+        )
     for marker_label, value in markers.items():
         hollow = "initial" in marker_label.lower()
         ax.plot(

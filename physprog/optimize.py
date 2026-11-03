@@ -59,18 +59,23 @@ def get_constraints(problem, preferences):
     print("Building constraints")
     constraints = []
     for funcname, func in preferences.items():
+        # (cutoff, sign) pairs: param >= cutoff is sign +1 (param - cutoff >= 0)
+        # and param <= cutoff is sign -1 (cutoff - param >= 0).
         if isinstance(func, classfunctions.MustBeAbove):
-            sign = 1.0  # param >= cutoff implies param - cutoff >= 0
+            limits = [(func.bounds.cutoff, 1.0)]
         elif isinstance(func, classfunctions.MustBeBelow):
-            sign = -1.0  # param <= cutoff implies cutoff - param >= 0
+            limits = [(func.bounds.cutoff, -1.0)]
+        elif isinstance(func, classfunctions.MustBeInRange):
+            limits = [(func.bounds.lower, 1.0), (func.bounds.upper, -1.0)]
         else:
             continue
-        constraints.append(
+        constraints.extend(
             {
                 "type": "ineq",
                 "fun": _constraint,
-                "args": (problem, funcname, func.bounds.cutoff, sign),
+                "args": (problem, funcname, cutoff, sign),
             }
+            for cutoff, sign in limits
         )
     return constraints
 

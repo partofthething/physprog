@@ -89,7 +89,14 @@ def test_from_input_rejects_unknown_class(tmp_path):
         cf.from_input(inp)
 
 
-def test_unimplemented_two_sided_raises():
-    func = cf.ValueIsBetter(None, None)
-    with pytest.raises(NotImplementedError):
-        func.evaluate(1.0)
+@pytest.mark.parametrize(
+    ("cls", "bounds"),
+    [
+        (cf.SmallerBetter, (10, 20, 30, 50, 40)),
+        (cf.LargerBetter, (10, 20, 30, 40, 50)),
+        (cf.SmallerBetter, (10, 20, 30, 40)),
+    ],
+)
+def test_misordered_bounds_rejected(cls, bounds):
+    with pytest.raises(ValueError, match="strictly"):
+        cls(bounds)
