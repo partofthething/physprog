@@ -2,6 +2,7 @@
 
 import warnings
 
+import numpy as np
 import scipy.optimize
 
 from physprog import classfunctions, objective
@@ -14,9 +15,10 @@ def optimize(model, preferences, plot=False):
     The model is left at the optimal design and the
     :class:`scipy.optimize.OptimizeResult` is returned.
     """
-    constraints = get_constraints(model, preferences)
-    aggregate = objective.build_objective(model, preferences)
-    initial_performance = _performance(model, preferences)
+    evaluator = objective.ModelEvaluator(model, preferences)
+    constraints = get_constraints(model, preferences, evaluator=evaluator)
+    aggregate = objective.build_objective(model, preferences, evaluator=evaluator)
+    initial_performance = dict(evaluator(model.design))
     val = aggregate(model.design)
     print(f"Optimizing design starting at value: {val:.2f}")
     print(initial_performance)
@@ -27,10 +29,11 @@ def optimize(model, preferences, plot=False):
     if not result.success:
         warnings.warn(f"Optimization did not converge: {result.message}", stacklevel=2)
 
-    # The constraint and objective callbacks mutate the model, so make sure it
-    # is left at the optimum rather than wherever the optimizer last probed.
+    # The callbacks leave the model at whichever design was evaluated last,
+    # so make sure it ends at the optimum.
     model.evaluate(result.x)
     final_performance = _performance(model, preferences)
+    print(f"Model evaluations: {evaluator.model_evaluations + 1}")
     print(f"Optimal design input: {model.design}")
     print(f"Params: {final_performance}\nValue: {result.fun}")
 
@@ -49,47 +52,44 @@ def _performance(model, preferences):
     return {name: getattr(model, name)() for name in preferences}
 
 
-def get_constraints(problem, preferences):
+def get_constraints(problem, preferences, evaluator=None):
     """
     Extract constraints given a set of class functions.
 
-    Scipy needs a sequence of dicts describing constraints: "ineq"
-    functions are forced to be >= 0 and "eq" functions to be 0.
+    Returns a list for ``scipy.optimize.minimize(constraints=...)`` with at
+    most one vector-valued "ineq" constraint (each entry >= 0 when
+    satisfied) and one "eq" constraint (each entry == 0).
 
     Pass the result as ``constraints=`` to ``scipy.optimize.minimize`` when
     using the aggregate objective from :mod:`physprog.objective` directly;
-    hard preferences are not part of the aggregate objective.
+    hard preferences are not part of the aggregate objective. Passing the
+    same :class:`~physprog.objective.ModelEvaluator` to both lets them share
+    model evaluations.
     """
     print("Building constraints")
-    constraints = []
-    for funcname, func in preferences.items():
-        # (type, cutoff, sign): param >= cutoff is sign +1 (param - cutoff >= 0)
-        # and param <= cutoff is sign -1 (cutoff - param >= 0).
+    if evaluator is None:
+        evaluator = objective.ModelEvaluator(problem, preferences)
+    # (name, cutoff, sign): param >= cutoff is sign +1 (param - cutoff >= 0)
+    # and param <= cutoff is sign -1 (cutoff - param >= 0).
+    limits = {"ineq": [], "eq": []}
+    for name, func in preferences.items():
         if isinstance(func, classfunctions.MustBeAbove):
-            limits = [("ineq", func.bounds.cutoff, 1.0)]
+            limits["ineq"].append((name, func.bounds.cutoff, 1.0))
         elif isinstance(func, classfunctions.MustBeBelow):
-            limits = [("ineq", func.bounds.cutoff, -1.0)]
+            limits["ineq"].append((name, func.bounds.cutoff, -1.0))
         elif isinstance(func, classfunctions.MustEqual):
-            limits = [("eq", func.bounds.cutoff, 1.0)]
+            limits["eq"].append((name, func.bounds.cutoff, 1.0))
         elif isinstance(func, classfunctions.MustBeInRange):
-            limits = [
-                ("ineq", func.bounds.lower, 1.0),
-                ("ineq", func.bounds.upper, -1.0),
-            ]
-        else:
-            continue
-        constraints.extend(
-            {
-                "type": kind,
-                "fun": _constraint,
-                "args": (problem, funcname, cutoff, sign),
-            }
-            for kind, cutoff, sign in limits
-        )
-    return constraints
+            limits["ineq"].append((name, func.bounds.lower, 1.0))
+            limits["ineq"].append((name, func.bounds.upper, -1.0))
+    return [
+        {"type": kind, "fun": _constraints, "args": (evaluator, entries)}
+        for kind, entries in limits.items()
+        if entries
+    ]
 
 
-def _constraint(x, prob, funcname, cutoff, sign):
-    """Evaluate a hard constraint; >= 0 (or == 0 for "eq") when satisfied."""
-    prob.design = x
-    return sign * (getattr(prob, funcname)() - cutoff)
+def _constraints(x, evaluator, entries):
+    """Evaluate hard constraints; each >= 0 (or == 0 for "eq") when satisfied."""
+    values = evaluator(x)
+    return np.array([sign * (values[name] - cutoff) for name, cutoff, sign in entries])
