@@ -75,9 +75,14 @@ def test_plots_render(tmp_path):
     final = {name: getattr(beam, name)() for name in prefs}
 
     plots.plot_class_function(prefs["cost"], fname=tmp_path / "one.png")
+    plots.plot_class_function(
+        prefs["mass"], yscale="linear", fname=tmp_path / "linear.png"
+    )
+    with pytest.raises(ValueError, match="yscale"):
+        plots.plot_class_function(prefs["cost"], yscale="symlog", show=False)
     plots.plot_class_functions(prefs, initial, final, fname=tmp_path / "grid.png")
     plots.plot_optimization_results(prefs, initial, final, fname=tmp_path / "r.png")
-    assert len(list(tmp_path.glob("*.png"))) == 3
+    assert len(list(tmp_path.glob("*.png"))) == 4
 
 
 SampleDesign = namedtuple("SampleDesign", ["d1", "d2", "d3", "b", "L"])

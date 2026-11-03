@@ -221,11 +221,11 @@ class SmoothClassFunction(ClassFunction):
         """Determine which region the value g is in."""
         raise NotImplementedError
 
-    def plot(self, fname=None):
+    def plot(self, fname=None, yscale="log"):
         """Plot this class function, saving to ``fname`` or showing it."""
         from physprog import plots  # noqa: PLC0415  (lazy: keep matplotlib optional)
 
-        plots.plot_class_function(self, fname=fname)
+        plots.plot_class_function(self, fname=fname, yscale=yscale)
 
     def acceptability(self, g):
         """
