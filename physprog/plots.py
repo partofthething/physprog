@@ -75,6 +75,7 @@ def plot_class_function(
     label_regions=True,
     markers=None,
     legend=True,
+    yscale="log",
     fname=None,
     show=None,
 ):
@@ -94,6 +95,11 @@ def plot_class_function(
         designs. Labels containing "initial" are drawn hollow.
     legend : bool
         Add a legend for the markers.
+    yscale : {"log", "linear"}
+        A log axis shows every region legibly, since each region's values
+        are many times the previous one's, but it makes the convex curves
+        look bulged. A linear axis shows their true convex shape, with the
+        better regions squashed near zero.
     fname : str, optional
         Save the figure to this file.
     show : bool, optional
@@ -112,7 +118,12 @@ def plot_class_function(
     lo, hi = _plot_range(func, extra=markers.values())
     x = np.linspace(lo, hi, 600)
     y = np.array([func.evaluate(xi) for xi in x])
-    ymax = func.gis[-1] * 8
+    if yscale == "log":
+        ymin, ymax = func.gis[0] / 3, func.gis[-1] * 8
+    elif yscale == "linear":
+        ymin, ymax = 0.0, func.gis[-1] * 1.25
+    else:
+        raise ValueError(f"yscale must be 'log' or 'linear', got {yscale!r}")
 
     for left, right, i in region_spans(func, lo, hi):
         ax.axvspan(left, right, color=REGION_COLORS[i], alpha=0.35, lw=0)
@@ -158,8 +169,8 @@ def plot_class_function(
             label=marker_label,
         )
 
-    ax.set_yscale("log")
-    ax.set_ylim(func.gis[0] / 3, ymax)
+    ax.set_yscale(yscale)
+    ax.set_ylim(ymin, ymax)
     ax.set_xlim(lo, hi)
     ax.set_xlabel(_axis_label(func))
     ax.set_ylabel("Class function value")
@@ -176,7 +187,14 @@ def plot_class_function(
 
 
 def plot_class_functions(
-    preferences, initials=None, finals=None, *, ncols=2, fname=None, show=None
+    preferences,
+    initials=None,
+    finals=None,
+    *,
+    ncols=2,
+    yscale="log",
+    fname=None,
+    show=None,
 ):
     """
     Plot every soft class function in ``preferences`` in a grid.
@@ -202,7 +220,12 @@ def plot_class_functions(
         if finals is not None:
             markers["Final"] = finals[name]
         plot_class_function(
-            func, ax=ax, label_regions=False, markers=markers, legend=False
+            func,
+            ax=ax,
+            label_regions=False,
+            markers=markers,
+            legend=False,
+            yscale=yscale,
         )
     for ax in axes.flat[len(soft) :]:
         ax.set_visible(False)

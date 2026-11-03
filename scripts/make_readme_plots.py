@@ -20,9 +20,13 @@ def main():
     """Build every README figure."""
     prefs = classfunctions.from_input(SAMPLE_INPUT)
 
-    plots.plot_class_function(prefs["cost"], fname=ASSETS / "class-function-cost.png")
     plots.plot_class_function(
-        prefs["frequency"], fname=ASSETS / "class-function-frequency.png"
+        prefs["cost"], yscale="linear", fname=ASSETS / "class-function-cost.png"
+    )
+    plots.plot_class_function(
+        prefs["frequency"],
+        yscale="linear",
+        fname=ASSETS / "class-function-frequency.png",
     )
 
     plot_two_sided()
@@ -51,8 +55,8 @@ def plot_two_sided():
     classfunctions.build_all_splines([value, in_range])
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
-    plots.plot_class_function(value, ax=axes[0])
-    plots.plot_class_function(in_range, ax=axes[1])
+    plots.plot_class_function(value, ax=axes[0], yscale="linear")
+    plots.plot_class_function(in_range, ax=axes[1], yscale="linear")
     fig.tight_layout()
     fig.savefig(ASSETS / "class-function-two-sided.png", dpi=150, bbox_inches="tight")
 

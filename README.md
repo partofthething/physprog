@@ -167,7 +167,12 @@ preferences["cost"].plot()  # or plot(fname='cost.png')
 
 ![Larger-is-better class function for frequency](./assets/class-function-frequency.png "Larger is better")
 
-The y axis is logarithmic, and the black dots mark the region boundaries.
+The black dots mark the region boundaries. Class functions are convex, but
+each region's values are several times the previous region's, so on a linear
+axis (as here) the better regions sit nearly flat near zero. Pass
+`yscale="log"` (the default for the plot functions) to see every region
+clearly. A log axis makes the convex curves look bulged between the bounds,
+as in the grid of sample class functions further down.
 
 Two-sided preferences join a larger-is-better curve and a smaller-is-better
 curve around the highly desirable region. *Value is better* dips to
@@ -254,6 +259,8 @@ plots.plot_class_functions(preferences, initial, final)
 ```
 
 ![Sample problem class functions with initial and final designs](./assets/sample-class-functions.png "Sample problem class functions")
+
+This grid uses a log y axis so the shapes in every region are visible.
 
 The README figures are regenerated with `uv run python scripts/make_readme_plots.py`.
 
