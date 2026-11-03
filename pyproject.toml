@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Physical Programming algorithm to robustly build aggregate objective functions for multiobjective optimization"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [
     { name = "Nick Touran", email = "physprog@partofthething.com" },
 ]
@@ -19,10 +19,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "numpy",
@@ -46,7 +45,29 @@ dev = [
 line-length = 88
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP"]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear (catches e.g. late-binding closures in loops)
+    "C4",  # comprehensions
+    "SIM", # simplifications
+    "PL",  # pylint rules
+    "RUF", # ruff-specific
+    "D",   # docstrings
+]
+ignore = [
+    "PLR0913", # too many arguments (plotting functions take many options)
+    "PLR2004", # magic values in comparisons
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.per-file-ignores]
+"physprog/tests/*" = ["D"]
 
 [tool.pytest.ini_options]
 testpaths = ["physprog/tests"]
