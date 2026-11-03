@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "physprog"
-version = "0.1.0"
+version = "1.0.0"
 description = "Physical Programming algorithm to robustly build aggregate objective functions for multiobjective optimization"
 readme = "README.md"
 license = "Apache-2.0"
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["physical", "programming", "multiobjective", "optimization", "aggregate"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "License :: OSI Approved :: Apache Software License",

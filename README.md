@@ -297,6 +297,10 @@ constraints = optimize.get_constraints(model, preferences, evaluator=evaluator)
 result = scipy.optimize.minimize(aggregate, model.design, constraints=constraints)
 ```
 
+# Changes
+
+See the [changelog](./CHANGELOG.md) for what changed in each version.
+
 # Contributing
 
 You are encouraged to make contributions to make this system more
