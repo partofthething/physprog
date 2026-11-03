@@ -1,48 +1,246 @@
 """Collection of plot functions."""
 
+import math
+
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Patch
+
+from physprog import classfunctions as cf
+
+# Green (best) to red (worst), one per preference region.
+REGION_COLORS = ("#1a9850", "#91cf60", "#d9ef8b", "#fee08b", "#fc8d59", "#d73027")
+
+DIRECTION_LABELS = {
+    cf.SmallerBetter: "smaller is better",
+    cf.LargerBetter: "larger is better",
+}
 
 
-# pylint: disable=too-many-locals
-def plot_optimization_results(preferences, initials, finals):
-    """Show how each design parameter changed in terms of preference."""
-    labels = [
-        "Highly\nUndesirable",
-        "Undesirable",
-        "Tolerable",
-        "Desirable",
-        "Highly\ndesirable",
+def _finish(fig, fname, show):
+    """Save and/or show a figure."""
+    if fname:
+        fig.savefig(fname, dpi=150, bbox_inches="tight")
+    if show:
+        plt.show()
+
+
+def _axis_label(func, fallback="Dependent variable"):
+    label = func.name or fallback
+    if func.units:
+        label += f" ({func.units})"
+    return label
+
+
+def _plot_range(func, extra=(), pad=0.15):
+    """Return (lo, hi) spanning all bounds and ``extra`` values, padded."""
+    values = [*func.bounds, *extra]
+    lo, hi = min(values), max(values)
+    span = hi - lo
+    return lo - pad * span, hi + pad * span
+
+
+def region_legend_handles():
+    """Legend handles for the six preference regions."""
+    return [
+        Patch(facecolor=color, alpha=0.5, label=name)
+        for color, name in zip(REGION_COLORS, cf.REGION_NAMES, strict=True)
     ]
-    _fig, ax = plt.subplots()
-    xticks = []
-    y_vals = np.arange(len(preferences)) + 0.5
-    x_max = max(y_vals)  # to keep squareish
-    for i, (initial, final, (_prefname, pref)) in enumerate(
-        zip(initials, finals, preferences.items())
-    ):
-        y = y_vals[len(preferences) - i - 1]
-        initial_f = pref.acceptability(initial) * x_max
-        final_f = pref.acceptability(final) * x_max
-        # ax.text(-0.3, y, prefname)
-        ax.annotate(
-            "", xy=(final_f, y), xytext=(initial_f, y), arrowprops={"arrowstyle": "->"}
-        )
-        circle1 = plt.Circle((initial_f, y), 0.1, color="k", fill=False)
-        circle2 = plt.Circle((final_f, y), 0.1, color="k", fill=True)
-        ax.add_artist(circle1)
-        ax.add_artist(circle2)
-        # plt.arrow(initial_f, y, (final_f - initial_f), 0.0, width=0.01)
-    for i, _label in enumerate(labels):
-        xtick = (i + 1.0) * x_max / 5.0
-        ax.axvline(xtick, color="k", alpha=0.2, linestyle="--")
-        xticks.append((i + 0.5) * x_max / 5.0)  # shift to middle
-    # ax.axvspan(0, 0.2, alpha=0.2, color='green')
-    ax.set_xlim([0, x_max + 1])
-    ax.set_ylim([0, x_max + 0.5])
 
-    plt.xticks(xticks, labels)
-    plt.yticks(list(reversed(y_vals)), [s.capitalize() for s in preferences.keys()])
-    plt.title("Optimization Results")
-    plt.tight_layout()
-    plt.show()
+
+def plot_class_function(
+    func,
+    *,
+    ax=None,
+    label_regions=True,
+    markers=None,
+    legend=True,
+    fname=None,
+    show=None,
+):
+    """
+    Plot one soft class function with its preference regions shaded.
+
+    Parameters
+    ----------
+    func : SmoothClassFunction
+        A class function whose splines have been built.
+    ax : matplotlib Axes, optional
+        Axes to draw into. A new figure is made if omitted.
+    label_regions : bool
+        Write region names inside the shaded bands.
+    markers : dict, optional
+        ``{label: value}`` points to mark on the curve, e.g. initial/final
+        designs. Labels containing "initial" are drawn hollow.
+    legend : bool
+        Add a legend for the markers.
+    fname : str, optional
+        Save the figure to this file.
+    show : bool, optional
+        Call ``plt.show()``. Defaults to True when no ``fname`` and no ``ax``
+        are given.
+    """
+    own_fig = ax is None
+    if own_fig:
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+    else:
+        fig = ax.figure
+    if show is None:
+        show = own_fig and not fname
+
+    markers = markers or {}
+    lo, hi = _plot_range(func, extra=markers.values())
+    x = np.linspace(lo, hi, 600)
+    y = np.array([func.evaluate(xi) for xi in x])
+    ymax = func.gis[-1] * 8
+
+    # Shade regions. Edges run from the best side of the plot to the worst.
+    larger_better = func.bounds[0] > func.bounds[-1]
+    best, worst = (hi, lo) if larger_better else (lo, hi)
+    edges = [best, *func.bounds, worst]
+    for i, color in enumerate(REGION_COLORS):
+        left, right = sorted((edges[i], edges[i + 1]))
+        ax.axvspan(left, right, color=color, alpha=0.35, lw=0)
+        if label_regions:
+            # Wide bands get horizontal text; narrow ones get vertical text.
+            wide = (right - left) / (hi - lo) > 0.12
+            ax.text(
+                (left + right) / 2,
+                0.97,
+                cf.REGION_NAMES[i].replace(" ", "\n") if wide else cf.REGION_NAMES[i],
+                transform=ax.get_xaxis_transform(),
+                ha="center",
+                va="top",
+                rotation=0 if wide else 90,
+                fontsize=7,
+                color="0.25",
+            )
+
+    ax.plot(x, y, color="k", lw=2)
+    ax.plot(func.bounds, func.gis, "o", color="k", ms=5, zorder=3)
+    for marker_label, value in markers.items():
+        hollow = "initial" in marker_label.lower()
+        ax.plot(
+            value,
+            min(func.evaluate(value), ymax),
+            "o",
+            ms=9,
+            mec="#2b5fa8",
+            mfc="white" if hollow else "#2b5fa8",
+            mew=2,
+            zorder=4,
+            label=marker_label,
+        )
+
+    ax.set_yscale("log")
+    ax.set_ylim(func.gis[0] / 3, ymax)
+    ax.set_xlim(lo, hi)
+    ax.set_xlabel(_axis_label(func))
+    ax.set_ylabel("Class function value")
+    direction = DIRECTION_LABELS.get(type(func), type(func).__name__)
+    title = f"{func.name}: {direction}" if func.name else direction.capitalize()
+    ax.set_title(title)
+    ax.grid(True, which="major", color="0.85", lw=0.6)
+    if markers and legend:
+        ax.legend(loc="lower right", fontsize=8)
+
+    if own_fig:
+        _finish(fig, fname, show)
+    return ax
+
+
+def plot_class_functions(
+    preferences, initials=None, finals=None, *, ncols=2, fname=None, show=None
+):
+    """
+    Plot every soft class function in ``preferences`` in a grid.
+
+    If ``initials``/``finals`` (dicts of dependent-variable values keyed by
+    name) are given, the before/after design is marked on each curve.
+    """
+    soft = {
+        name: func
+        for name, func in preferences.items()
+        if isinstance(func, cf.SmoothClassFunction)
+    }
+    nrows = math.ceil(len(soft) / ncols)
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(5.5 * ncols, 3.6 * nrows), squeeze=False
+    )
+    for ax, (name, func) in zip(axes.flat, soft.items(), strict=False):
+        if func.name is None:
+            func.name = name
+        markers = {}
+        if initials is not None:
+            markers["Initial"] = initials[name]
+        if finals is not None:
+            markers["Final"] = finals[name]
+        plot_class_function(
+            func, ax=ax, label_regions=False, markers=markers, legend=False
+        )
+    for ax in axes.flat[len(soft) :]:
+        ax.set_visible(False)
+
+    marker_handles = axes.flat[0].get_legend_handles_labels()[0]
+    fig.legend(
+        handles=[*region_legend_handles(), *marker_handles],
+        loc="lower center",
+        ncol=4,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.02),
+    )
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    if show is None:
+        show = not fname
+    _finish(fig, fname, show)
+    return fig
+
+
+def plot_optimization_results(preferences, initials, finals, *, fname=None, show=None):
+    """
+    Show how each dependent variable changed in terms of preference.
+
+    ``initials`` and ``finals`` are either dicts keyed by dependent-variable
+    name, or sequences in the same order as ``preferences``.
+    """
+    if not isinstance(initials, dict):
+        initials = dict(zip(preferences, initials, strict=False))
+    if not isinstance(finals, dict):
+        finals = dict(zip(preferences, finals, strict=False))
+
+    names = list(preferences)
+    fig, ax = plt.subplots(figsize=(8, 0.5 * len(names) + 1.5))
+    # Columns from worst (left) to best (right); unacceptable maps to 0.
+    for i, color in enumerate(reversed(REGION_COLORS[:-1])):
+        ax.axvspan(i / 5, (i + 1) / 5, color=color, alpha=0.35, lw=0)
+
+    for row, name in enumerate(names):
+        pref = preferences[name]
+        y = len(names) - row - 1
+        start = pref.acceptability(initials[name])
+        end = pref.acceptability(finals[name])
+        if not math.isclose(start, end):
+            ax.annotate(
+                "",
+                xy=(end, y),
+                xytext=(start, y),
+                arrowprops={"arrowstyle": "->", "color": "k", "lw": 1.5},
+            )
+        ax.plot(start, y, "o", ms=9, mfc="white", mec="k", mew=1.5)
+        ax.plot(end, y, "o", ms=9, color="k")
+
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.7, len(names) - 0.3)
+    ax.set_xticks([(i + 0.5) / 5 for i in range(5)])
+    ax.set_xticklabels(
+        [n.replace(" ", "\n") for n in reversed(cf.REGION_NAMES[:-1])], fontsize=8
+    )
+    ax.set_yticks(range(len(names)))
+    ax.set_yticklabels([_axis_label(preferences[n], n) for n in reversed(names)])
+    ax.set_title("Optimization results (hollow: initial, filled: final)")
+    fig.tight_layout()
+
+    if show is None:
+        show = not fname
+    _finish(fig, fname, show)
+    return fig

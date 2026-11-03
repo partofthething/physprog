@@ -10,7 +10,7 @@ dependents:
        - 100.0
   - name: cost
     class: SmallerBetter
-    units: kg
+    units: $
     bounds:
        - 1000.0
        - 1800.0
