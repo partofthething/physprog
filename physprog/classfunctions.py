@@ -15,6 +15,7 @@ SoftBounds = collections.namedtuple(
     "SoftBounds", ["awesome", "desirable", "tolerable", "undesirable", "horrible"]
 )
 HardBounds = collections.namedtuple("HardBounds", ["cutoff"])
+RangeBounds = collections.namedtuple("RangeBounds", ["lower", "upper"])
 
 # region labels
 AWESOME = 0
@@ -72,13 +73,33 @@ class SmoothClassFunction(ClassFunction):
     This is made of splines that are computed in an algorithm.
     """
 
+    # +1 if bounds increase from best to worst, -1 if they decrease.
+    direction = None
+
+    # If True, the class function has zero slope at the first bound so it
+    # can join a flat "highly desirable" region smoothly (range is better).
+    flat_best_region = False
+
     def __init__(self, bounds):
         """Construct class function."""
         ClassFunction.__init__(self, bounds)
+        self._check_bounds()
         self.slopes = []
         self.region_slopes = []
         self.gis = []
         self.dgis = []
+
+    def _check_bounds(self):
+        """Make sure bounds run strictly from most to least desirable."""
+        if self.direction is None:
+            return
+        steps = np.diff(self.bounds) * self.direction
+        if len(self.bounds) != len(SoftBounds._fields) or np.any(steps <= 0):
+            order = "increasing" if self.direction > 0 else "decreasing"
+            raise ValueError(
+                f"{type(self).__name__} needs {len(SoftBounds._fields)} strictly "
+                f"{order} bounds (most to least desirable), got {tuple(self.bounds)}"
+            )
 
     def evaluate(self, g):
         """
@@ -153,7 +174,11 @@ class SmoothClassFunction(ClassFunction):
         for i, region_slope in enumerate(self.region_slopes):
             if i == 0:
                 # s_1 = alpha * (average slope of the next region), per Messac.
-                self.slopes[i] = alpha * self.region_slopes[1]
+                # A flat best region needs zero slope here to join smoothly.
+                if self.flat_best_region:
+                    self.slopes[i] = 0.0
+                else:
+                    self.slopes[i] = alpha * self.region_slopes[1]
             else:
                 # slope[k]=skMin+alpha*(-skMax+skMin)
                 # skMin-skMax in the paper. But if you calculate it you see
@@ -219,6 +244,8 @@ class SmallerBetter(SmoothClassFunction):
     will be increasing.
     """
 
+    direction = +1
+
     def which_region(self, g):
         """Determine which region dependent variable value g is in."""
         low = -float("inf")
@@ -238,6 +265,8 @@ class LargerBetter(SmoothClassFunction):
     Input bounds will have awesome as the highest value and other decreasing.
     """
 
+    direction = -1
+
     def which_region(self, g):
         """Determine which region dependent variable value g is in."""
         high = +float("inf")
@@ -250,38 +279,205 @@ class LargerBetter(SmoothClassFunction):
         return UNACCEPTABLE  # unacceptable.
 
 
-class TwoSidedFunction(ClassFunction):
-    """Class function for value or range is better."""
+class TwoSidedFunction(SmoothClassFunction):
+    """
+    Base for soft preferences that are bad on both sides (3-S and 4-S).
+
+    It is built from two one-sided class functions: a larger-is-better
+    function for values below the best region and a smaller-is-better
+    function for values above it. The best ("highly desirable") region is
+    the interval between the two first bounds, which is handled by
+    subclasses.
+
+    Parameters
+    ----------
+    lower_bounds : sequence of 5 floats
+        Bounds below the best region, from most to least desirable, so they
+        decrease (e.g. ``[4.5, 4.0, 3.5, 3.0, 2.5]``).
+    upper_bounds : sequence of 5 floats
+        Bounds above the best region, from most to least desirable, so they
+        increase (e.g. ``[5.5, 6.0, 6.5, 7.0, 7.5]``).
+    """
 
     def __init__(self, lower_bounds, upper_bounds):
         """Construct class function."""
-        # requires two sets of bounds for lower and upper limit
-        self._lower_bounds = lower_bounds
-        self._upper_bounds = upper_bounds
+        self.lower = LargerBetter(SoftBounds(*lower_bounds))
+        self.upper = SmallerBetter(SoftBounds(*upper_bounds))
+        self.lower.flat_best_region = self.upper.flat_best_region = (
+            self.flat_best_region
+        )
+        if not self.lower.bounds[0] < self.upper.bounds[0]:
+            raise ValueError(
+                f"{type(self).__name__} needs the first lower bound "
+                f"({self.lower.bounds[0]}) below the first upper bound "
+                f"({self.upper.bounds[0]})"
+            )
 
-    def evaluate(self, g):
-        """Evaluate the class function against some input."""
-        raise NotImplementedError
+    @property
+    def bounds(self):
+        """All bounds in increasing order (lower side, then upper side)."""
+        return (*reversed(self.lower.bounds), *self.upper.bounds)
 
-    def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
-        """Compute the splines that define this class function's values."""
-        raise NotImplementedError
+    @property
+    def gis(self):
+        """Class function values at the bounds (the same on both sides)."""
+        return self.upper.gis
 
+    @property
+    def best_region(self):
+        """The (low, high) edges of the highly desirable region."""
+        return self.lower.bounds[0], self.upper.bounds[0]
 
-class ValueIsBetter(TwoSidedFunction, SmoothClassFunction):
-    """A certain value is better (3-S)."""
-
-    def evaluate(self, g):
-        """Evaluate the class function against some input."""
-        raise NotImplementedError
-
-    def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
-        """Compute the splines that define this class function's values."""
-        raise NotImplementedError
+    def side(self, g):
+        """Return the one-sided function governing ``g``, or None if best."""
+        low, high = self.best_region
+        if g < low:
+            return self.lower
+        if g > high:
+            return self.upper
+        return None
 
     def which_region(self, g):
         """Determine which region dependent variable value g is in."""
+        side = self.side(g)
+        return AWESOME if side is None else side.which_region(g)
+
+    def evaluate(self, g):
+        """Evaluate the class function against some input."""
+        side = self.side(g)
+        if side is None:
+            return self.evaluate_best_region(g)
+        return side.evaluate(g)
+
+    def evaluate_best_region(self, g):
+        """Evaluate the class function inside the highly desirable region."""
         raise NotImplementedError
+
+    def acceptability(self, g):
+        """Rank the acceptability of value g on scale from 0 to 1."""
+        side = self.side(g)
+        if side is None:
+            return 0.9
+        return side.acceptability(g)
+
+    def build_splines(self, nsc, alpha=0.05, initial_beta=1.5):
+        """Build both sides with a common beta so their values match."""
+        beta = initial_beta
+        for _i in range(MAX_ITERATIONS):
+            new_beta = max(
+                self.lower.build_splines(nsc, alpha, beta),
+                self.upper.build_splines(nsc, alpha, beta),
+            )
+            if new_beta == beta:
+                self._finish_build()
+                return beta
+            beta = new_beta
+        raise RuntimeError("Two-sided class function construction did not converge.")
+
+    def _finish_build(self):
+        """Set up the best region once both sides are built (subclass hook)."""
+
+
+class ValueIsBetter(TwoSidedFunction):
+    """
+    A certain value is better (3-S).
+
+    The class function has its minimum at ``target`` and rises smoothly
+    toward both edges of the highly desirable region, joining the
+    one-sided splines with matching value and slope. If ``target`` is not
+    given, it is placed so both halves are the same parabola-like shape
+    (the midpoint when the bounds are symmetric).
+    """
+
+    def __init__(self, lower_bounds, upper_bounds, target=None):
+        """Construct class function."""
+        TwoSidedFunction.__init__(self, lower_bounds, upper_bounds)
+        low, high = self.best_region
+        if target is not None and not low < target < high:
+            raise ValueError(
+                f"target {target} must lie strictly between {low} and {high}"
+            )
+        self.requested_target = target
+        self.target = target if target is not None else (low + high) / 2.0
+        self.depth = 0.0
+
+    def _finish_build(self):
+        """
+        Choose the target and how far the minimum dips below the edge value.
+
+        Each half is a cubic Hermite spline from the edge (value g0, slope s)
+        to the target (value g0 - depth, slope 0). A half is monotonic when
+        ``depth >= s*h/3`` and also convex when ``depth <= 2*s*h/3``, where h
+        is its width. We pick a depth that keeps both halves convex if
+        possible (always true for the default target), and otherwise the
+        smallest depth that keeps both monotonic, for off-center targets.
+        """
+        low, high = self.best_region
+        s_low = -self.lower.slopes[0]
+        s_high = self.upper.slopes[0]
+        if self.requested_target is None:
+            # Equal s*h on each side makes both halves quadratic.
+            self.target = (s_low * low + s_high * high) / (s_low + s_high)
+        h_low, h_high = self.target - low, high - self.target
+        depth_min = max(s_low * h_low, s_high * h_high) / 3.0
+        depth_max = 2.0 * min(s_low * h_low, s_high * h_high) / 3.0
+        if depth_min <= depth_max:
+            self.depth = (depth_min + depth_max) / 2.0
+        else:
+            self.depth = depth_min
+        g0 = self.gis[0]
+        if self.depth >= g0:
+            raise ValueError(
+                f"Highly desirable region ({low}, {high}) of {self.name or 'value'} "
+                "is too wide relative to the desirable regions to build a "
+                "positive class function; widen the desirable bounds"
+            )
+
+    def evaluate_best_region(self, g):
+        """Smooth bowl with its minimum at the target."""
+        low, high = self.best_region
+        g0 = self.gis[0]
+        bottom = g0 - self.depth
+        if g <= self.target:
+            return _hermite(
+                g, (low, g0, self.lower.slopes[0]), (self.target, bottom, 0)
+            )
+        return _hermite(g, (self.target, bottom, 0), (high, g0, self.upper.slopes[0]))
+
+    def acceptability(self, g):
+        """Rank acceptability; 1 at the target falling to 0.8 at the edges."""
+        if self.side(g) is not None:
+            return TwoSidedFunction.acceptability(self, g)
+        low, high = self.best_region
+        edge = low if g <= self.target else high
+        return 1.0 - 0.2 * (g - self.target) / (edge - self.target)
+
+
+class RangeIsBetter(TwoSidedFunction):
+    """
+    Any value within a range is equally good (4-S).
+
+    The class function is flat across the highly desirable region and
+    rises smoothly outside it.
+    """
+
+    flat_best_region = True
+
+    def evaluate_best_region(self, g):
+        """Return the constant value of the highly desirable region."""
+        return self.gis[0]
+
+
+def _hermite(x, start, end):
+    """Evaluate the cubic Hermite spline between (x, y, slope) end points."""
+    (x0, y0, m0), (x1, y1, m1) = start, end
+    h = x1 - x0
+    u = (x - x0) / h
+    h00 = 2 * u**3 - 3 * u**2 + 1
+    h10 = u**3 - 2 * u**2 + u
+    h01 = -2 * u**3 + 3 * u**2
+    h11 = u**3 - u**2
+    return h00 * y0 + h10 * h * m0 + h01 * y1 + h11 * h * m1
 
 
 class HardClassFunction(ClassFunction):
@@ -329,10 +525,25 @@ class MustBeBelow(HardClassFunction):
         return 0.0
 
 
-class MustBeInRange(TwoSidedFunction, HardClassFunction):
-    """Value must be between two bounds (3-H)."""
+class MustBeInRange(HardClassFunction):
+    """Value must be between two bounds (3-H). Bounds are a RangeBounds."""
 
-    pass
+    def __init__(self, bounds):
+        """Construct class function."""
+        bounds = RangeBounds(*bounds)
+        if not bounds.lower < bounds.upper:
+            raise ValueError(f"MustBeInRange needs lower < upper, got {bounds}")
+        HardClassFunction.__init__(self, bounds)
+
+    def acceptability(self, g):
+        """
+        Rank the acceptability of value g on scale from 0 to 1.
+
+        Useful for plotting relative changes to values.
+        """
+        if self.bounds.lower <= g <= self.bounds.upper:
+            return 1.0
+        return 0.0
 
 
 def from_input(filename):
@@ -349,8 +560,18 @@ def from_input(filename):
                     f"Unknown class function {details['class']!r} "
                     f"for {dependent_name!r}"
                 )
-            if issubclass(cls, SmoothClassFunction):
+            if issubclass(cls, ValueIsBetter):
+                func = cls(
+                    details["lower_bounds"],
+                    details["upper_bounds"],
+                    target=details.get("target"),
+                )
+            elif issubclass(cls, TwoSidedFunction):
+                func = cls(details["lower_bounds"], details["upper_bounds"])
+            elif issubclass(cls, SmoothClassFunction):
                 func = cls(SoftBounds(*details["bounds"]))
+            elif issubclass(cls, MustBeInRange):
+                func = cls(RangeBounds(*details["bounds"]))
             else:
                 func = cls(HardBounds(details["bound"]))
             func.name = dependent_name
