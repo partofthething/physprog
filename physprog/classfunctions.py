@@ -36,6 +36,10 @@ MAX_BETA = 40.0
 # smooth (C1) for gradient-based optimizers but grows quickly.
 UNACCEPTABLE_PENALTY = 10.0
 
+# Default ValueIsBetter.pull: fraction of the edge value the target dips below
+# the edges of the highly desirable region.
+DEFAULT_PULL = 0.5
+
 REGION_NAMES = (
     "Highly desirable",
     "Desirable",
@@ -385,47 +389,47 @@ class ValueIsBetter(TwoSidedFunction):
     The class function has its minimum at ``target`` and rises smoothly
     toward both edges of the highly desirable region, joining the
     one-sided splines with matching value and slope. If ``target`` is not
-    given, it is placed so both halves are the same parabola-like shape
-    (the midpoint when the bounds are symmetric).
+    given, it is the middle of the highly desirable region.
+
+    ``pull`` sets how strongly the target attracts the design: the minimum
+    sits ``pull`` times the edge value below the edges, so 0 is nearly flat
+    (any value in the region is about as good) and values near 1 make the
+    target worth almost as much as the whole highly desirable region of
+    another metric.
     """
 
-    def __init__(self, lower_bounds, upper_bounds, target=None):
+    def __init__(self, lower_bounds, upper_bounds, target=None, pull=DEFAULT_PULL):
         """Construct class function."""
         TwoSidedFunction.__init__(self, lower_bounds, upper_bounds)
         low, high = self.best_region
-        if target is not None and not low < target < high:
+        if target is None:
+            target = (low + high) / 2.0
+        if not low < target < high:
             raise ValueError(
                 f"target {target} must lie strictly between {low} and {high}"
             )
-        self.requested_target = target
-        self.target = target if target is not None else (low + high) / 2.0
+        if not 0.0 <= pull < 1.0:
+            raise ValueError(f"pull must be in [0, 1), got {pull}")
+        self.target = target
+        self.pull = pull
         self.depth = 0.0
 
     def _finish_build(self):
         """
-        Choose the target and how far the minimum dips below the edge value.
+        Set how far the minimum dips below the edge value.
 
         Each half is a cubic Hermite spline from the edge (value g0, slope s)
-        to the target (value g0 - depth, slope 0). A half is monotonic when
-        ``depth >= s*h/3`` and also convex when ``depth <= 2*s*h/3``, where h
-        is its width. We pick a depth that keeps both halves convex if
-        possible (always true for the default target), and otherwise the
-        smallest depth that keeps both monotonic, for off-center targets.
+        to the target (value g0 - depth, slope 0). It decreases monotonically
+        toward the target as long as ``depth >= s*h/3``, where h is the
+        half's width, so the requested pull is raised to that if needed.
         """
         low, high = self.best_region
+        g0 = self.gis[0]
         s_low = -self.lower.slopes[0]
         s_high = self.upper.slopes[0]
-        if self.requested_target is None:
-            # Equal s*h on each side makes both halves quadratic.
-            self.target = (s_low * low + s_high * high) / (s_low + s_high)
         h_low, h_high = self.target - low, high - self.target
-        depth_min = max(s_low * h_low, s_high * h_high) / 3.0
-        depth_max = 2.0 * min(s_low * h_low, s_high * h_high) / 3.0
-        if depth_min <= depth_max:
-            self.depth = (depth_min + depth_max) / 2.0
-        else:
-            self.depth = depth_min
-        g0 = self.gis[0]
+        monotonic_min = max(s_low * h_low, s_high * h_high) / 3.0
+        self.depth = max(self.pull * g0, monotonic_min)
         if self.depth >= g0:
             raise ValueError(
                 f"Highly desirable region ({low}, {high}) of {self.name or 'value'} "
@@ -565,6 +569,7 @@ def from_input(filename):
                     details["lower_bounds"],
                     details["upper_bounds"],
                     target=details.get("target"),
+                    pull=details.get("pull", DEFAULT_PULL),
                 )
             elif issubclass(cls, TwoSidedFunction):
                 func = cls(details["lower_bounds"], details["upper_bounds"])

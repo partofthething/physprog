@@ -108,8 +108,9 @@ dependents:
 For metrics that are bad on both sides, give `lower_bounds` (below the ideal,
 decreasing) and `upper_bounds` (above the ideal, increasing), each from most
 to least desirable. The highly desirable region is between the two first
-bounds. `ValueIsBetter` takes an optional `target` inside that region; if you
-leave it out, it goes in the middle for symmetric bounds. A two-sided hard
+bounds. `ValueIsBetter` takes an optional `target` inside that region (the
+middle by default) and an optional `pull` from 0 to 1 (default 0.5) that sets
+how strongly the target attracts the design. A two-sided hard
 constraint takes a `[lower, upper]` pair:
 
 ```yaml
@@ -117,6 +118,7 @@ constraint takes a `[lower, upper]` pair:
     class: ValueIsBetter
     units: mm
     target: 4.9
+    pull: 0.5
     lower_bounds: [4.6, 4.2, 4.0, 3.8, 3.5]
     upper_bounds: [5.2, 5.6, 5.8, 6.0, 6.3]
   - name: temperature
@@ -158,14 +160,18 @@ preferences["cost"].plot()  # or plot(fname='cost.png')
 The y axis is logarithmic, and the black dots mark the region boundaries.
 
 Two-sided preferences join a larger-is-better curve and a smaller-is-better
-curve around the highly desirable region. *Value is better* dips slightly to
+curve around the highly desirable region. *Value is better* dips to
 a minimum at the target. *Range is better* is flat across its whole range:
 
 ![Value-is-better and range-is-better class functions](./assets/class-function-two-sided.png "Two-sided class functions")
 
-The dip inside the highly desirable region is deliberately shallow, in keeping
-with the method: an optimizer gets the metric into that region, but
-it will readily trade away exact target accuracy to improve other metrics.
+`pull` is how far the target dips below the edges of the highly desirable
+region, as a fraction of the value there. With `pull: 0`, any value in the
+region is about equally good, so the optimizer will happily drift to an edge
+(or past it) to help other metrics. With the default 0.5, the target holds up
+much better against competing metrics, though a metric that is still only
+"desirable" can pull it slightly off target, as the one-vs-others rule
+intends.
 
 ## Specifying a model
 
