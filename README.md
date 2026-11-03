@@ -1,5 +1,7 @@
 # PhysProg
 
+[![CI](https://github.com/partofthething/physprog/actions/workflows/ci.yml/badge.svg)](https://github.com/partofthething/physprog/actions/workflows/ci.yml)
+
 **physprog** ("Physical Programming") is a tool for people who have something
 with multiple metrics they want to optimize simultaneously. You may be an
 engineer wanting to minimize the cost, minimize the weight, and maximize the
@@ -89,7 +91,7 @@ dependents:
        - 100.0
   - name: cost
     class: SmallerBetter
-    units: kg
+    units: $
     bounds:
        - 1000.0
        - 1800.0
@@ -105,6 +107,29 @@ dependents:
 NOTE: You can also specify preferences in a dictionary and bypass
 the input file.
 
+## Visualizing class functions
+
+Each soft preference becomes a smooth, convex *class function*. Its value at
+each boundary is the same for every metric, so a metric that is just barely
+"tolerable" costs the aggregate objective the same whether it is measured in
+dollars, hertz or meters. Each step into a worse region costs much more than
+all better regions of every other metric combined (the "one vs. others" rule).
+Past the last bound, the function keeps rising smoothly with a quadratic
+penalty.
+
+```python
+from physprog import classfunctions
+
+preferences = classfunctions.from_input("input.yaml")
+preferences["cost"].plot()  # or plot(fname='cost.png')
+```
+
+![Smaller-is-better class function for cost](./assets/class-function-cost.png "Smaller is better")
+
+![Larger-is-better class function for frequency](./assets/class-function-frequency.png "Larger is better")
+
+The y axis is logarithmic, and the black dots mark the region boundaries.
+
 ## Specifying a model
 
 Your model must take inputs and produce outputs. Inputs should be
@@ -115,7 +140,8 @@ your dependent variables. With the example preferences above, your model
 may look like:
 
 ```python
-SampleDesign = namedtuple('SampleDesign', ['d1', 'd2', 'd3', 'b', 'L'])
+SampleDesign = namedtuple("SampleDesign", ["d1", "d2", "d3", "b", "L"])
+
 
 class SampleProblemBeam:
     """Dummy sample problem."""
@@ -130,7 +156,7 @@ class SampleProblemBeam:
         return [self.frequency(), self.cost(), self.width()]
 
     def frequency(self):
-        return math.pi / (2 * self.design.L ** 2) * self.design.d2
+        return math.pi / (2 * self.design.L**2) * self.design.d2
 
     def cost(self):
         ds = self.design
@@ -151,13 +177,32 @@ do something like this:
 
 ```python
 from physprog import classfunctions, optimize
-preferences = classfunctions.from_input('input.yaml')
+
+preferences = classfunctions.from_input("input.yaml")
 model = SampleProblemBeam()
-optimize.optimize(model, preferences, plot=True)
+result = optimize.optimize(model, preferences, plot=True)
 ```
-The results of the full sample problem are shown below:
+
+`optimize` returns the `scipy.optimize.OptimizeResult` and leaves `model` at
+the optimal design. The plot shows where each metric started and ended on the
+preference scale. Here are the results for the full sample problem:
 
 ![Picture of optimization results](./assets/sample-results.png "Sample problem results")
+
+You can also see the before/after design on each class function:
+
+```python
+from physprog import plots
+
+initial = {name: getattr(model, name)() for name in preferences}  # before optimizing
+# ... optimize ...
+final = {name: getattr(model, name)() for name in preferences}
+plots.plot_class_functions(preferences, initial, final)
+```
+
+![Sample problem class functions with initial and final designs](./assets/sample-class-functions.png "Sample problem class functions")
+
+The README figures are regenerated with `uv run python scripts/make_readme_plots.py`.
 
 ## Building the objective function
 
@@ -166,7 +211,8 @@ you can do this:
 
 ```python
 from physprog import classfunctions, objective
-preferences = classfunctions.from_input('input.yaml')
+
+preferences = classfunctions.from_input("input.yaml")
 model = SampleProblemBeam()
 aggregate = objective.build_objective(model, preferences)
 ```
