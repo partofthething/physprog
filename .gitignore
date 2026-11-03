@@ -2,6 +2,10 @@
 *.swp
 .pydevproject
 .project
-.tox
 .cache
 *.egg-info
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
