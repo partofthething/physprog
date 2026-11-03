@@ -20,10 +20,19 @@ def build(func, nsc_copies=3):
     params=[
         lambda: cf.ValueIsBetter(LOWER, UPPER),
         lambda: cf.ValueIsBetter(LOWER, UPPER, target=4.7),
+        lambda: cf.ValueIsBetter(LOWER, UPPER, pull=0.0),
+        lambda: cf.ValueIsBetter(LOWER, UPPER, pull=0.95),
         lambda: cf.ValueIsBetter((4.5, 4.4, 4.3, 4.2, 4.1), UPPER),
         lambda: cf.RangeIsBetter(LOWER, UPPER),
     ],
-    ids=["value", "value-off-center", "value-lopsided", "range"],
+    ids=[
+        "value",
+        "value-off-center",
+        "value-flat",
+        "value-deep",
+        "value-lopsided",
+        "range",
+    ],
 )
 def func(request):
     return build(request.param())
@@ -88,6 +97,44 @@ def test_default_target_is_midpoint_for_symmetric_bounds():
     assert func.target == pytest.approx(5.0)
 
 
+def test_pull_sets_depth():
+    shallow = build(cf.ValueIsBetter(LOWER, UPPER, pull=0.1))
+    deep = build(cf.ValueIsBetter(LOWER, UPPER, pull=0.8))
+    g0 = deep.gis[0]
+    assert deep.evaluate(5.0) == pytest.approx(0.2 * g0)
+    assert shallow.evaluate(5.0) == pytest.approx(0.9 * g0)
+
+
+class Competing:
+    """Thickness has a target, but cost (100 x thickness) wants it thinner."""
+
+    def __init__(self):
+        self.design = np.array([5.15])
+
+    def evaluate(self, x=None):
+        if x is not None:
+            self.design = np.asarray(x, dtype=float)
+
+    def thickness(self):
+        return self.design[0]
+
+    def cost(self):
+        return 100 * self.design[0]
+
+
+@pytest.mark.parametrize(("pull", "near_target"), [(0.0, False), (0.5, True)])
+def test_pull_resists_competing_metric(pull, near_target):
+    lower, upper = (4.6, 4.2, 4.0, 3.8, 3.5), (5.2, 5.6, 5.8, 6.0, 6.3)
+    prefs = {
+        "thickness": cf.ValueIsBetter(lower, upper, target=4.9, pull=pull),
+        "cost": cf.SmallerBetter(cf.SoftBounds(300, 600, 650, 700, 750)),
+    }
+    cf.build_all_splines(prefs.values())
+    model = Competing()
+    optimize.optimize(model, prefs)
+    assert bool(abs(model.thickness() - 4.9) < 0.15) == near_target
+
+
 def test_range_is_flat_inside():
     func = build(cf.RangeIsBetter(LOWER, UPPER))
     values = {func.evaluate(g) for g in np.linspace(4.5, 5.5, 11)}
@@ -106,6 +153,7 @@ def test_acceptability(func):
     [
         ((LOWER, (4.0, 6.0, 6.5, 7.0, 7.5)), "below the first upper bound"),
         ((LOWER, UPPER, 6.0), "strictly between"),
+        ((LOWER, UPPER, None, 1.0), "pull"),
         (((4.5, 4.0, 3.5, 3.0, 3.1), UPPER), "strictly"),
     ],
 )
@@ -131,6 +179,7 @@ dependents:
     class: ValueIsBetter
     units: mm
     target: 4.9
+    pull: 0.7
     lower_bounds: [4.5, 4.0, 3.5, 3.0, 2.5]
     upper_bounds: [5.5, 6.0, 6.5, 7.0, 7.5]
   - name: temperature
@@ -144,6 +193,7 @@ dependents:
     )
     funcs = cf.from_input(inp)
     assert funcs["thickness"].target == 4.9
+    assert funcs["thickness"].pull == 0.7
     assert funcs["thickness"].units == "mm"
     assert funcs["temperature"].best_region == (20, 24)
     assert funcs["angle"].bounds == cf.RangeBounds(10, 20)
