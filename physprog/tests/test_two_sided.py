@@ -170,6 +170,37 @@ def test_must_be_in_range():
         cf.MustBeInRange(cf.RangeBounds(2.0, 1.0))
 
 
+def test_must_equal_acceptability():
+    func = cf.MustEqual(cf.HardBounds(4.0))
+    assert func.acceptability(4.0) == 1.0
+    assert func.acceptability(4.0 + 1e-12) == 1.0
+    assert func.acceptability(4.1) == 0.0
+
+
+def test_must_equal_is_an_equality_constraint():
+    """
+    The hard equality on angle (thickness + temperature) wins.
+
+    Both soft preferences can't stay highly desirable (5.5 + 24 < 30), so
+    the optimizer trades them off but neither falls past desirable.
+    """
+    prefs = {
+        "thickness": cf.ValueIsBetter(LOWER, UPPER),
+        "temperature": cf.RangeIsBetter((20, 18, 16, 14, 12), (24, 26, 28, 30, 32)),
+        "angle": cf.MustEqual(cf.HardBounds(30.0)),
+    }
+    cf.build_all_splines(prefs.values())
+    model = Model()
+    constraints = optimize.get_constraints(model, prefs)
+    assert [c["type"] for c in constraints] == ["eq"]
+    result = optimize.optimize(model, prefs)
+    assert result.success
+    assert model.angle() == pytest.approx(30.0, abs=1e-6)
+    for name in ("thickness", "temperature"):
+        region = prefs[name].which_region(getattr(model, name)())
+        assert region <= cf.DESIRABLE, name
+
+
 def test_from_input(tmp_path):
     inp = tmp_path / "two-sided.yaml"
     inp.write_text(
@@ -189,6 +220,9 @@ dependents:
   - name: angle
     class: MustBeInRange
     bounds: [10, 20]
+  - name: span
+    class: MustEqual
+    bound: 4.0
 """
     )
     funcs = cf.from_input(inp)
@@ -197,6 +231,8 @@ dependents:
     assert funcs["thickness"].units == "mm"
     assert funcs["temperature"].best_region == (20, 24)
     assert funcs["angle"].bounds == cf.RangeBounds(10, 20)
+    assert isinstance(funcs["span"], cf.MustEqual)
+    assert funcs["span"].bounds.cutoff == 4.0
 
 
 class Model:

@@ -502,7 +502,7 @@ class HardClassFunction(ClassFunction):
 
 
 class MustBeAbove(HardClassFunction):
-    """Value must be above a bound (1-H)."""
+    """Value must be above a bound (2-H, must be larger)."""
 
     def acceptability(self, g):
         """
@@ -516,7 +516,7 @@ class MustBeAbove(HardClassFunction):
 
 
 class MustBeBelow(HardClassFunction):
-    """Value must be below a bound (2-H)."""
+    """Value must be below a bound (1-H, must be smaller)."""
 
     def acceptability(self, g):
         """
@@ -529,8 +529,27 @@ class MustBeBelow(HardClassFunction):
         return 0.0
 
 
+class MustEqual(HardClassFunction):
+    """Value must equal a bound (3-H). The bound is a HardBounds."""
+
+    # Relative and absolute tolerance used to judge acceptability.
+    rel_tol = 1e-6
+    abs_tol = 1e-9
+
+    def acceptability(self, g):
+        """
+        Rank the acceptability of value g on scale from 0 to 1.
+
+        Useful for plotting relative changes to values.
+        """
+        close = math.isclose(
+            g, self.bounds.cutoff, rel_tol=self.rel_tol, abs_tol=self.abs_tol
+        )
+        return 1.0 if close else 0.0
+
+
 class MustBeInRange(HardClassFunction):
-    """Value must be between two bounds (3-H). Bounds are a RangeBounds."""
+    """Value must be between two bounds (4-H). Bounds are a RangeBounds."""
 
     def __init__(self, bounds):
         """Construct class function."""
